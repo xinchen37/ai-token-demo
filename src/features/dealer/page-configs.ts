@@ -277,7 +277,6 @@ export const pageConfigs = {
       { key: "loginAccount", label: "登录账号", required: true },
       { key: "role", label: "角色", kind: "select", options: ["管理员", "财务", "销售", "运维"] },
       { key: "status", label: "状态", kind: "select", options: ["启用", "停用"] },
-      { key: "lastLoginAt", label: "最后登录时间" },
     ],
   } satisfies RecordPageConfig,
   roles: {
@@ -305,6 +304,7 @@ export const pageConfigs = {
     description: "按销售人员查看负责客户数、客户消耗额和新增客户。",
     createLabel: "新增客户业绩",
     searchPlaceholder: "搜索销售、客户、状态",
+    readOnly: true,
     columns: [
       { key: "sales", label: "销售人员" },
       { key: "company", label: "客户名称" },
