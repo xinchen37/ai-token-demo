@@ -128,6 +128,7 @@ export const pageConfigs = {
     description: "查看所有客户 API 调用扣费流水。",
     createLabel: "新建消费记录",
     searchPlaceholder: "搜索客户、模型、记录 ID",
+    readOnly: true,
     columns: [
       { key: "recordNo", label: "记录ID" },
       { key: "customerName", label: "客户名称" },
@@ -157,6 +158,7 @@ export const pageConfigs = {
     description: "查看 API 调用技术日志，用于调试和问题追踪。",
     createLabel: "新建日志",
     searchPlaceholder: "搜索任务ID、客户、模型",
+    readOnly: true,
     columns: [
       { key: "taskId", label: "任务ID" },
       { key: "requestedAt", label: "请求时间" },
@@ -235,6 +237,7 @@ export const pageConfigs = {
     description: "管理客户每月账单，包括生成、查看明细和结算状态。",
     createLabel: "新建账单",
     searchPlaceholder: "搜索客户、账期、状态",
+    readOnly: true,
     columns: [
       { key: "billNo", label: "账单ID" },
       { key: "customerName", label: "客户名称" },

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Edit3, LayoutGrid, Plus, RotateCcw, Search, Table2, Trash2, X } from "lucide-react";
+import { Edit3, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -14,6 +14,7 @@ export interface RecordPageConfig {
   searchPlaceholder: string;
   columns: ColumnConfig[];
   fields: FieldConfig[];
+  readOnly?: boolean;
 }
 
 interface RecordPageProps {
@@ -34,6 +35,9 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = React.useState(false);
   const [hasContentOnRight, setHasContentOnRight] = React.useState(false);
   const isProductPage = config.entity === "products";
+  const showActions = !config.readOnly;
+  const canCreate = showActions && config.entity !== "models";
+  const canDelete = showActions && config.entity !== "models";
   const emptyDraft = React.useMemo(() => buildEmptyDraft(config.fields), [config.fields]);
   const [draft, setDraft] = React.useState<Record<string, string | number>>(emptyDraft);
 
@@ -59,6 +63,8 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
   React.useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) {
+      setHasHorizontalOverflow(false);
+      setHasContentOnRight(false);
       return;
     }
 
@@ -79,7 +85,7 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
       resizeObserver.disconnect();
       container.removeEventListener("scroll", updateScrollState);
     };
-  }, [config.columns, filteredRecords.length]);
+  }, [config.columns, filteredRecords.length, viewMode]);
 
   function openCreateForm() {
     setEditingRecord(null);
@@ -123,10 +129,12 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
               <RotateCcw className="size-4" />
               重置
             </Button>
-            <Button variant="primary" onClick={openCreateForm}>
-              <Plus className="size-4" />
-              {config.createLabel}
-            </Button>
+            {canCreate ? (
+              <Button variant="primary" onClick={openCreateForm}>
+                <Plus className="size-4" />
+                {config.createLabel}
+              </Button>
+            ) : null}
           </div>
           {isProductPage ? <ViewModeToggle value={viewMode} onChange={setViewMode} /> : null}
         </div>
@@ -184,7 +192,7 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
       ) : null}
 
       {isProductPage && viewMode === "cards" ? (
-        <ProductCardGrid records={filteredRecords} onEdit={openEditForm} onDelete={onDelete} />
+        <ProductCardGrid records={filteredRecords} canDelete={canDelete} onEdit={openEditForm} onDelete={onDelete} />
       ) : (
       <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
         <div ref={scrollContainerRef} className="max-h-[calc(100vh-340px)] overflow-auto">
@@ -200,27 +208,29 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
                     {column.label}
                   </th>
                 ))}
-                <th
-                  className={[
-                    "top-0 h-12 min-w-[190px] whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 text-right font-medium",
-                    hasHorizontalOverflow
-                      ? [
-                          "sticky right-0 z-30",
-                          hasContentOnRight
-                            ? "border-l border-slate-200/70 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]"
-                            : "border-l-0 shadow-none",
-                        ].join(" ")
-                      : "sticky z-10",
-                  ].join(" ")}
-                >
-                  操作
-                </th>
+                {showActions ? (
+                  <th
+                    className={[
+                      "sticky right-0 top-0 h-12 min-w-[190px] whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 text-right font-medium",
+                      hasHorizontalOverflow
+                        ? [
+                            "z-30",
+                            hasContentOnRight
+                              ? "border-l border-slate-200/70 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]"
+                              : "border-l-0 shadow-none",
+                          ].join(" ")
+                        : "z-10",
+                    ].join(" ")}
+                  >
+                    操作
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td className="h-24 px-4 text-center text-slate-500" colSpan={config.columns.length + 1}>
+                  <td className="h-24 px-4 text-center text-slate-500" colSpan={config.columns.length + (showActions ? 1 : 0)}>
                     暂无匹配数据
                   </td>
                 </tr>
@@ -235,30 +245,34 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
                       {column.format ? column.format(getRecordValue(record, column.key), record) : formatCell(getRecordValue(record, column.key))}
                     </td>
                   ))}
-                  <td
-                    className={[
-                      "whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3",
-                      hasHorizontalOverflow
-                        ? [
-                            "sticky right-0 z-20",
-                            hasContentOnRight
-                              ? "border-l border-slate-200/70 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]"
-                              : "border-l-0 shadow-none",
-                          ].join(" ")
-                        : "",
-                    ].join(" ")}
-                  >
-                    <div className="flex justify-end gap-1">
-                      <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => openEditForm(record)}>
-                        <Edit3 className="size-4" />
-                        编辑
-                      </Button>
-                      <Button className="px-2" variant="danger" onClick={() => onDelete(record.id)}>
-                        <Trash2 className="size-4" />
-                        删除
-                      </Button>
-                    </div>
-                  </td>
+                  {showActions ? (
+                    <td
+                      className={[
+                        "sticky right-0 whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3",
+                        hasHorizontalOverflow
+                          ? [
+                              "z-20",
+                              hasContentOnRight
+                                ? "border-l border-slate-200/70 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]"
+                                : "border-l-0 shadow-none",
+                            ].join(" ")
+                          : "z-10",
+                      ].join(" ")}
+                    >
+                      <div className="flex justify-end gap-1">
+                        <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => openEditForm(record)}>
+                          <Edit3 className="size-4" />
+                          编辑
+                        </Button>
+                        {canDelete ? (
+                          <Button className="px-2" variant="danger" onClick={() => onDelete(record.id)}>
+                            <Trash2 className="size-4" />
+                            删除
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -273,7 +287,7 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
 function ViewModeToggle({ value, onChange }: { value: "cards" | "table"; onChange: (value: "cards" | "table") => void }) {
   const items = [
     { value: "cards" as const, label: "卡片视图", icon: LayoutGrid },
-    { value: "table" as const, label: "表格视图", icon: Table2 },
+    { value: "table" as const, label: "列表视图", icon: List },
   ];
 
   return (
@@ -301,7 +315,7 @@ function ViewModeToggle({ value, onChange }: { value: "cards" | "table"; onChang
   );
 }
 
-function ProductCardGrid({ records, onEdit, onDelete }: { records: BaseRecord[]; onEdit: (record: BaseRecord) => void; onDelete: (id: string) => void }) {
+function ProductCardGrid({ records, canDelete, onEdit, onDelete }: { records: BaseRecord[]; canDelete: boolean; onEdit: (record: BaseRecord) => void; onDelete: (id: string) => void }) {
   if (records.length === 0) {
     return (
       <section className="rounded-md border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm shadow-slate-100">
@@ -346,10 +360,12 @@ function ProductCardGrid({ records, onEdit, onDelete }: { records: BaseRecord[];
                 <Edit3 className="size-4" />
                 编辑
               </Button>
-              <Button className="px-2" variant="danger" onClick={() => onDelete(record.id)}>
-                <Trash2 className="size-4" />
-                删除
-              </Button>
+              {canDelete ? (
+                <Button className="px-2" variant="danger" onClick={() => onDelete(record.id)}>
+                  <Trash2 className="size-4" />
+                  删除
+                </Button>
+              ) : null}
             </div>
           </article>
         );

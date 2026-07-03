@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   BarChart3,
   Bell,
@@ -39,7 +40,15 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const navGroups: Array<{ label: string; items: NavItem[] }> = [
+interface NavBranch {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: NavItem[];
+}
+
+type NavEntry = NavItem | NavBranch;
+
+const navGroups: Array<{ label: string; items: NavEntry[] }> = [
   { label: "", items: [{ key: "dashboard", label: "看板", icon: Home }] },
   {
     label: "模型",
@@ -52,10 +61,16 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "客户",
     items: [
-      { key: "customers", label: "我的客户", icon: BriefcaseBusiness },
-      { key: "apiKeys", label: "客户API Key", icon: FileKey2 },
-      { key: "consumptions", label: "消费记录", icon: ReceiptText },
-      { key: "usageLogs", label: "使用日志", icon: BookOpenText },
+      {
+        label: "客户管理",
+        icon: BriefcaseBusiness,
+        children: [
+          { key: "customers", label: "我的客户", icon: BriefcaseBusiness },
+          { key: "apiKeys", label: "客户API Key", icon: FileKey2 },
+          { key: "consumptions", label: "消费记录", icon: ReceiptText },
+          { key: "usageLogs", label: "使用日志", icon: BookOpenText },
+        ],
+      },
       { key: "reports", label: "客户报表", icon: BarChart3 },
     ],
   },
@@ -69,16 +84,36 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "管理",
     items: [
-      { key: "members", label: "团队成员", icon: Users },
-      { key: "roles", label: "角色管理", icon: ShieldCheck },
-      { key: "teamReports", label: "团队报表", icon: LineChart },
+      {
+        label: "团队管理",
+        icon: Users,
+        children: [
+          { key: "members", label: "团队成员", icon: Users },
+          { key: "roles", label: "角色管理", icon: ShieldCheck },
+          { key: "teamReports", label: "团队报表", icon: LineChart },
+        ],
+      },
       { key: "profile", label: "个人中心", icon: UserRound },
     ],
   },
 ];
 
 export function DealerLayout({ activePage, profile, onPageChange, onResetData, children }: DealerLayoutProps) {
-  const activeLabel = navGroups.flatMap((group) => group.items).find((item) => item.key === activePage)?.label ?? "看板";
+  const activeLabel = getAllNavItems().find((item) => item.key === activePage)?.label ?? "看板";
+  const [openBranches, setOpenBranches] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    const activeBranch = getActiveBranch(activePage);
+    if (!activeBranch) {
+      return;
+    }
+
+    setOpenBranches((current) => ({ ...current, [activeBranch]: true }));
+  }, [activePage]);
+
+  function toggleBranch(label: string) {
+    setOpenBranches((current) => ({ ...current, [label]: !current[label] }));
+  }
 
   return (
     <div className="min-h-screen bg-white text-[#111827]">
@@ -111,6 +146,46 @@ export function DealerLayout({ activePage, profile, onPageChange, onResetData, c
               {group.label ? <div className="pb-2 pt-4 text-sm text-slate-400">{group.label}</div> : null}
               <div className="space-y-1">
                 {group.items.map((item) => {
+                  if (isNavBranch(item)) {
+                    const open = Boolean(openBranches[item.label]);
+                    const selected = item.children.some((child) => child.key === activePage);
+                    return (
+                      <div key={item.label}>
+                        <button
+                          className={cn(
+                            "flex h-12 w-full items-center gap-3 rounded-md px-4 text-left text-base font-medium transition-colors",
+                            selected ? "text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                          )}
+                          onClick={() => toggleBranch(item.label)}
+                        >
+                          <item.icon className={cn("size-5", selected ? "text-[#1155ff]" : "text-slate-400")} />
+                          <span className="flex-1">{item.label}</span>
+                          <ChevronDown className={cn("size-4 text-slate-400 transition-transform", open ? "rotate-180" : "")} />
+                        </button>
+                        {open ? (
+                          <div className="mt-1 space-y-1 pl-8">
+                            {item.children.map((child) => {
+                              const childSelected = activePage === child.key;
+                              return (
+                                <button
+                                  key={child.key}
+                                  className={cn(
+                                    "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium transition-colors",
+                                    childSelected ? "bg-[#1155ff] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                                  )}
+                                  onClick={() => onPageChange(child.key)}
+                                >
+                                  <child.icon className={cn("size-4", childSelected ? "text-white/85" : "text-slate-400")} />
+                                  <span className="flex-1">{child.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
                   const selected = activePage === item.key;
                   return (
                     <button
@@ -166,6 +241,26 @@ export function DealerLayout({ activePage, profile, onPageChange, onResetData, c
       </div>
     </div>
   );
+}
+
+function isNavBranch(item: NavEntry): item is NavBranch {
+  return "children" in item;
+}
+
+function getAllNavItems() {
+  return navGroups.flatMap((group) => group.items.flatMap((item) => (isNavBranch(item) ? item.children : [item])));
+}
+
+function getActiveBranch(activePage: DealerPageKey) {
+  for (const group of navGroups) {
+    for (const item of group.items) {
+      if (isNavBranch(item) && item.children.some((child) => child.key === activePage)) {
+        return item.label;
+      }
+    }
+  }
+
+  return null;
 }
 
 function HeaderIcon({ label, children }: { label: string; children: React.ReactNode }) {

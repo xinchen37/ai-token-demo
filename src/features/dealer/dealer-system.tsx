@@ -2,6 +2,7 @@ import * as React from "react";
 import { DealerLayout } from "./dealer-layout";
 import { useDealerStore } from "./local-store";
 import { DashboardPage } from "./pages/dashboard-page";
+import { CustomerReportsPage } from "./pages/customer-reports-page";
 import { ProfilePage } from "./pages/profile-page";
 import { RecordPage } from "./pages/record-page";
 import { TrialPage } from "./pages/trial-page";
@@ -17,13 +18,14 @@ export function DealerSystem() {
     <DealerLayout activePage={activePage} profile={data.profile} onPageChange={setActivePage} onResetData={resetData}>
       {activePage === "dashboard" ? <DashboardPage data={data} onPageChange={setActivePage} /> : null}
       {activePage === "trial" ? <TrialPage models={data.models} apiKeys={data.apiKeys} /> : null}
+      {activePage === "reports" ? <CustomerReportsPage data={data} /> : null}
       {activePage === "profile" ? (
         <ProfilePage
           profile={data.profile}
           onSave={(profile) => updateData((current) => ({ ...current, profile }))}
         />
       ) : null}
-      {config ? (
+      {config && activePage !== "reports" ? (
         <RecordPage
           config={config}
           records={data[config.entity] as BaseRecord[]}
