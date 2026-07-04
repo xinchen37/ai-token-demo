@@ -217,7 +217,12 @@ function getNextYearDateTime(value: string) {
 }
 
 function ensureBuiltInRecords(data: DealerData): DealerData {
-  const nextMembers = data.members.map((member) =>
+  const normalizedData = {
+    ...data,
+    enterpriseMembers: data.enterpriseMembers ?? [],
+    enterpriseRoles: data.enterpriseRoles ?? [],
+  };
+  const nextMembers = normalizedData.members.map((member) =>
     member.id === "member-admin" || member.loginAccount === "1888888888"
       ? { ...member, loginAccount: "18888888888" }
       : member,
@@ -238,7 +243,26 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
     }
   }
 
-  return { ...data, members: nextMembers, roles: nextRoles };
+  const nextEnterpriseMembers = mergeById(normalizedData.enterpriseMembers, dealerSeedData.enterpriseMembers);
+  const nextEnterpriseRoles = mergeById(normalizedData.enterpriseRoles, dealerSeedData.enterpriseRoles);
+
+  return {
+    ...normalizedData,
+    members: nextMembers,
+    roles: nextRoles,
+    enterpriseMembers: nextEnterpriseMembers,
+    enterpriseRoles: nextEnterpriseRoles,
+  };
+}
+
+function mergeById<T extends { id: string }>(current: T[], seed: T[]) {
+  const nextItems = [...current];
+  for (const item of seed) {
+    if (!nextItems.some((currentItem) => currentItem.id === item.id)) {
+      nextItems.push(item);
+    }
+  }
+  return nextItems;
 }
 
 function mergeCsvPermissions(value: string, permission: string) {

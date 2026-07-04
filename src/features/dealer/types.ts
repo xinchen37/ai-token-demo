@@ -148,6 +148,26 @@ export interface RoleRecord extends BaseRecord {
   status: "启用" | "停用";
 }
 
+export interface EnterpriseMember extends BaseRecord {
+  customerName: string;
+  name: string;
+  loginAccount: string;
+  role: string;
+  status: "启用" | "停用";
+  lastLoginAt: string;
+  initialPassword?: string;
+  statusRemark?: string;
+  avatarDataUrl?: string;
+}
+
+export interface EnterpriseRole extends BaseRecord {
+  customerName: string;
+  name: string;
+  description: string;
+  permissions: string;
+  status: "启用" | "停用";
+}
+
 export interface TodoItem extends BaseRecord {
   level: "红色" | "黄色" | "蓝色";
   title: string;
@@ -180,6 +200,8 @@ export interface DealerData {
   bills: Bill[];
   members: TeamMember[];
   roles: RoleRecord[];
+  enterpriseMembers: EnterpriseMember[];
+  enterpriseRoles: EnterpriseRole[];
   todos: TodoItem[];
   notices: NoticeItem[];
   profile: DealerProfile;
