@@ -13,6 +13,7 @@ import {
   Home,
   Layers,
   LineChart,
+  LogOut,
   Menu,
   Package,
   ReceiptText,
@@ -28,7 +29,9 @@ import type { DealerPageKey, DealerProfile } from "./types";
 
 interface DealerLayoutProps {
   activePage: DealerPageKey;
+  allowedPages: ReadonlySet<DealerPageKey>;
   profile: DealerProfile;
+  onLogout: () => void;
   onPageChange: (page: DealerPageKey) => void;
   onResetData: () => void;
   children: React.ReactNode;
@@ -98,18 +101,19 @@ const navGroups: Array<{ label: string; items: NavEntry[] }> = [
   },
 ];
 
-export function DealerLayout({ activePage, profile, onPageChange, onResetData, children }: DealerLayoutProps) {
+export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPageChange, onResetData, children }: DealerLayoutProps) {
+  const visibleNavGroups = React.useMemo(() => filterNavGroups(allowedPages), [allowedPages]);
   const activeLabel = getAllNavItems().find((item) => item.key === activePage)?.label ?? "看板";
   const [openBranches, setOpenBranches] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
-    const activeBranch = getActiveBranch(activePage);
+    const activeBranch = getActiveBranch(activePage, visibleNavGroups);
     if (!activeBranch) {
       return;
     }
 
     setOpenBranches((current) => ({ ...current, [activeBranch]: true }));
-  }, [activePage]);
+  }, [activePage, visibleNavGroups]);
 
   function toggleBranch(label: string) {
     setOpenBranches((current) => ({ ...current, [label]: !current[label] }));
@@ -129,19 +133,40 @@ export function DealerLayout({ activePage, profile, onPageChange, onResetData, c
           <ChevronLeft className="size-4" />
         </button>
 
-        <div className="mx-4 flex h-16 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 shadow-sm shadow-slate-100">
-          <div className="flex size-11 items-center justify-center rounded bg-[#101a3d] font-bold text-white">
-            {profile.avatarText}
+        <div className="group relative mx-4">
+          <div className="flex h-16 cursor-pointer items-center gap-3 rounded-md border border-slate-200 bg-white px-3 shadow-sm shadow-slate-100 transition-colors group-hover:border-blue-100 group-hover:shadow-md group-hover:shadow-slate-100">
+            <div className="flex size-11 items-center justify-center rounded bg-[#101a3d] font-bold text-white">
+              {profile.avatarText}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-slate-800">{profile.name}</div>
+              <div className="truncate text-sm text-slate-400">{profile.phone}</div>
+            </div>
+            <ChevronDown className="size-5 text-slate-700 transition-transform group-hover:rotate-180" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-slate-800">{profile.name}</div>
-            <div className="truncate text-sm text-slate-400">{profile.phone}</div>
+
+          <div className="invisible absolute left-0 right-0 top-[72px] z-40 rounded-md border border-slate-200 bg-white p-2 opacity-0 shadow-xl shadow-slate-200/70 transition-all duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+            <button
+              className="flex h-10 w-full cursor-pointer items-center gap-3 rounded px-3 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-blue-50 hover:text-[#1155ff]"
+              onClick={() => onPageChange("profile")}
+              type="button"
+            >
+              <UserRound className="size-4" />
+              个人中心
+            </button>
+            <button
+              className="flex h-10 w-full cursor-pointer items-center gap-3 rounded px-3 text-left text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50"
+              onClick={onLogout}
+              type="button"
+            >
+              <LogOut className="size-4" />
+              退出登录
+            </button>
           </div>
-          <ChevronDown className="size-5 text-slate-700" />
         </div>
 
         <nav className="mt-5 h-[calc(100vh-190px)] overflow-y-auto px-4 pb-8">
-          {navGroups.map((group, groupIndex) => (
+          {visibleNavGroups.map((group, groupIndex) => (
             <div key={`${group.label}-${groupIndex}`} className="border-t border-dashed border-slate-100 first:border-t-0">
               {group.label ? <div className="pb-2 pt-4 text-sm text-slate-400">{group.label}</div> : null}
               <div className="space-y-1">
@@ -251,8 +276,8 @@ function getAllNavItems() {
   return navGroups.flatMap((group) => group.items.flatMap((item) => (isNavBranch(item) ? item.children : [item])));
 }
 
-function getActiveBranch(activePage: DealerPageKey) {
-  for (const group of navGroups) {
+function getActiveBranch(activePage: DealerPageKey, groups: Array<{ label: string; items: NavEntry[] }>) {
+  for (const group of groups) {
     for (const item of group.items) {
       if (isNavBranch(item) && item.children.some((child) => child.key === activePage)) {
         return item.label;
@@ -261,6 +286,24 @@ function getActiveBranch(activePage: DealerPageKey) {
   }
 
   return null;
+}
+
+function filterNavGroups(allowedPages: ReadonlySet<DealerPageKey>) {
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((item) => {
+          if (!isNavBranch(item)) {
+            return allowedPages.has(item.key) ? item : null;
+          }
+
+          const children = item.children.filter((child) => allowedPages.has(child.key));
+          return children.length > 0 ? { ...item, children } : null;
+        })
+        .filter((item): item is NavEntry => Boolean(item)),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 function HeaderIcon({ label, children }: { label: string; children: React.ReactNode }) {

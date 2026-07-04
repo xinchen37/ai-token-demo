@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Edit3, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Edit3, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -26,7 +26,7 @@ interface RecordPageProps {
   onDelete: (id: string) => void;
 }
 
-export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: RecordPageProps) {
+export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete }: RecordPageProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [keyword, setKeyword] = React.useState("");
   const [editingRecord, setEditingRecord] = React.useState<BaseRecord | null>(null);
@@ -38,12 +38,13 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
   const showActions = !config.readOnly;
   const canCreate = showActions && config.entity !== "models";
   const canDelete = showActions && config.entity !== "models";
-  const emptyDraft = React.useMemo(() => buildEmptyDraft(config.fields), [config.fields]);
+  const resolvedFields = React.useMemo(() => resolveFields(config.fields, data), [config.fields, data]);
+  const emptyDraft = React.useMemo(() => buildEmptyDraft(resolvedFields), [resolvedFields]);
   const [draft, setDraft] = React.useState<Record<string, string | number>>(emptyDraft);
 
   React.useEffect(() => {
-    setDraft(editingRecord ? recordToDraft(editingRecord, config.fields) : emptyDraft);
-  }, [editingRecord, emptyDraft, config.fields]);
+    setDraft(editingRecord ? recordToDraft(editingRecord, resolvedFields) : emptyDraft);
+  }, [editingRecord, emptyDraft, resolvedFields]);
 
   React.useEffect(() => {
     setViewMode(config.entity === "products" ? "cards" : "table");
@@ -105,7 +106,7 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedDraft = normalizeDraft(config.fields, draft);
+    const normalizedDraft = normalizeDraft(resolvedFields, draft);
 
     if (editingRecord) {
       onUpdate(editingRecord.id, normalizedDraft);
@@ -166,8 +167,8 @@ export function RecordPage({ config, records, onCreate, onUpdate, onDelete }: Re
 
               <div className="overflow-y-auto px-7 py-6">
                 <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
-                  {config.fields.map((field) => (
-                    <label key={String(field.key)} className={field.kind === "textarea" ? "space-y-2 md:col-span-2" : "space-y-2"}>
+                  {resolvedFields.map((field) => (
+                    <label key={String(field.key)} className={field.kind === "textarea" || field.kind === "permissionMatrix" ? "space-y-2 md:col-span-2" : "space-y-2"}>
                       <span className="block text-sm font-semibold text-slate-700">
                         {field.label}
                         {field.required ? <span className="ml-1 text-rose-500">*</span> : null}
@@ -401,6 +402,14 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
     );
   }
 
+  if (field.kind === "multiSelect") {
+    return <MultiSelectInput field={field} value={String(value)} onChange={onChange} />;
+  }
+
+  if (field.kind === "permissionMatrix") {
+    return <PermissionMatrixInput value={String(value)} onChange={onChange} />;
+  }
+
   if (field.kind === "textarea") {
     return (
       <textarea
@@ -425,9 +434,208 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
   );
 }
 
+const permissionModules = [
+  { key: "dashboard", label: "看板", actions: ["访问", "查看"] },
+  { key: "models", label: "模型管理", actions: ["访问", "查看", "新增", "编辑", "删除"] },
+  { key: "customers", label: "客户管理", actions: ["访问", "查看", "新增", "编辑", "删除", "导出"] },
+  { key: "reports", label: "客户报表", actions: ["访问", "查看", "导出"] },
+  { key: "finance", label: "财务管理", actions: ["访问", "查看", "新增", "编辑", "删除", "导出"] },
+  { key: "team", label: "团队管理", actions: ["访问", "查看", "新增", "编辑", "删除"] },
+  { key: "profile", label: "个人中心", actions: ["访问", "查看", "编辑"] },
+];
+
+function PermissionMatrixInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const permissionMap = React.useMemo(() => parsePermissionValue(value), [value]);
+
+  function updateModule(moduleKey: string, moduleLabel: string, action: string, checked: boolean) {
+    const currentActions = new Set(permissionMap[moduleKey]?.actions ?? []);
+    if (checked) {
+      currentActions.add(action);
+      if (action !== "访问") currentActions.add("访问");
+    } else {
+      currentActions.delete(action);
+      if (action === "访问") currentActions.clear();
+    }
+
+    commitPermissions({
+      ...permissionMap,
+      [moduleKey]: { moduleKey, moduleLabel, actions: [...currentActions] },
+    });
+  }
+
+  function setModuleAll(moduleKey: string, moduleLabel: string, actions: string[], checked: boolean) {
+    commitPermissions({
+      ...permissionMap,
+      [moduleKey]: { moduleKey, moduleLabel, actions: checked ? actions : [] },
+    });
+  }
+
+  function commitPermissions(nextMap: Record<string, { moduleKey: string; moduleLabel: string; actions: string[] }>) {
+    const nextPermissions = permissionModules
+      .map((item) => nextMap[item.key])
+      .filter((item) => item && item.actions.length > 0)
+      .map((item) => ({
+        ...item,
+        actions: item.actions.sort((left, right) => permissionActionOrder(left) - permissionActionOrder(right)),
+      }));
+
+    onChange(JSON.stringify(nextPermissions));
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="grid grid-cols-[150px_1fr] border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+        <span>功能模块</span>
+        <span>操作权限</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {permissionModules.map((module) => {
+          const selectedActions = new Set(permissionMap[module.key]?.actions ?? []);
+          const allChecked = module.actions.every((action) => selectedActions.has(action));
+          return (
+            <div key={module.key} className="grid grid-cols-[150px_1fr] gap-4 px-4 py-4">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  checked={allChecked}
+                  className="size-4 accent-[#1155ff]"
+                  onChange={(event) => setModuleAll(module.key, module.label, module.actions, event.target.checked)}
+                  type="checkbox"
+                />
+                {module.label}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {module.actions.map((action) => {
+                  const checked = selectedActions.has(action);
+                  return (
+                    <label
+                      key={action}
+                      className={`flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm transition-colors ${checked ? "border-blue-100 bg-blue-50 text-[#1155ff]" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`}
+                    >
+                      <input
+                        checked={checked}
+                        className="size-3.5 accent-[#1155ff]"
+                        onChange={(event) => updateModule(module.key, module.label, action, event.target.checked)}
+                        type="checkbox"
+                      />
+                      {action}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function parsePermissionValue(value: string): Record<string, { moduleKey: string; moduleLabel: string; actions: string[] }> {
+  if (!value.trim()) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return {};
+    }
+
+    return parsed.reduce<Record<string, { moduleKey: string; moduleLabel: string; actions: string[] }>>((result, item) => {
+      if (
+        typeof item === "object"
+        && item !== null
+        && "moduleKey" in item
+        && "moduleLabel" in item
+        && "actions" in item
+        && Array.isArray((item as { actions?: unknown }).actions)
+      ) {
+        const permission = item as { moduleKey: string; moduleLabel: string; actions: string[] };
+        result[permission.moduleKey] = permission;
+      }
+
+      return result;
+    }, {});
+  } catch {
+    const legacyLabels = value.split(",").map((item) => item.trim()).filter(Boolean);
+    return permissionModules.reduce<Record<string, { moduleKey: string; moduleLabel: string; actions: string[] }>>((result, module) => {
+      if (legacyLabels.some((label) => label.includes(module.label) || module.label.includes(label.split("-")[0] ?? ""))) {
+        result[module.key] = { moduleKey: module.key, moduleLabel: module.label, actions: ["访问", "查看"] };
+      }
+
+      return result;
+    }, {});
+  }
+}
+
+function permissionActionOrder(action: string) {
+  return ["访问", "查看", "新增", "编辑", "删除", "导出"].indexOf(action);
+}
+
+function MultiSelectInput({ field, value, onChange }: { field: FieldConfig; value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const selectedValues = value.split(",").map((item) => item.trim()).filter(Boolean);
+  const display = selectedValues.length === 0 ? "请选择" : selectedValues.length === 1 ? selectedValues[0] : `已选 ${selectedValues.length} 项`;
+
+  React.useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  function toggleOption(option: string) {
+    const nextValues = selectedValues.includes(option)
+      ? selectedValues.filter((item) => item !== option)
+      : [...selectedValues, option];
+
+    onChange(nextValues.join(","));
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        aria-expanded={open}
+        className="flex h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-4 text-left text-sm text-slate-700 outline-none transition hover:border-slate-300 focus:border-[#1155ff] focus:bg-white focus:ring-2 focus:ring-blue-100"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className={selectedValues.length === 0 ? "text-slate-400" : "truncate"}>{display}</span>
+        <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-12 z-40 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/70">
+          {(field.options ?? []).length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-400">暂无可选数据</div>
+          ) : null}
+          {(field.options ?? []).map((option) => {
+            const checked = selectedValues.includes(option);
+            return (
+              <button
+                key={option}
+                className={`flex h-9 w-full cursor-pointer items-center gap-2 rounded px-2.5 text-left text-sm transition-colors ${checked ? "bg-blue-50 text-[#1155ff]" : "text-slate-700 hover:bg-slate-50"}`}
+                onClick={() => toggleOption(option)}
+                type="button"
+              >
+                <span className={`flex size-4 items-center justify-center rounded border ${checked ? "border-[#1155ff] bg-[#1155ff] text-white" : "border-slate-300"}`}>
+                  {checked ? <Check className="size-3" /> : null}
+                </span>
+                <span className="truncate">{option}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function buildEmptyDraft(fields: FieldConfig[]): Record<string, string | number> {
   return fields.reduce<Record<string, string | number>>((draft, field) => {
-    draft[String(field.key)] = field.kind === "number" ? 0 : field.options?.[0] ?? "";
+    draft[String(field.key)] = field.kind === "number" ? 0 : field.kind === "permissionMatrix" ? "[]" : field.options?.[0] ?? "";
     return draft;
   }, {});
 }
@@ -446,6 +654,50 @@ function normalizeDraft(fields: FieldConfig[], draft: Record<string, string | nu
     normalized[key] = field.kind === "number" ? Number(draft[key] || 0) : draft[key] ?? "";
     return normalized;
   }, {});
+}
+
+function resolveFields(fields: FieldConfig[], data: DealerData): FieldConfig[] {
+  return fields.map((field) => {
+    if (!field.optionSource) {
+      return field;
+    }
+
+    return {
+      ...field,
+      options: resolveOptions(field.optionSource, data),
+    };
+  });
+}
+
+function resolveOptions(source: NonNullable<FieldConfig["optionSource"]>, data: DealerData): string[] {
+  if (source === "customers") {
+    return unique(data.customers.map((customer) => customer.company));
+  }
+
+  if (source === "models") {
+    return unique(data.models.map((model) => model.name));
+  }
+
+  if (source === "products") {
+    return unique(data.products.map((product) => product.name));
+  }
+
+  if (source === "salesMembers") {
+    return unique([
+      ...data.members.filter((member) => member.role === "销售").map((member) => member.name),
+      ...data.customers.map((customer) => customer.sales),
+    ]);
+  }
+
+  if (source === "roles") {
+    return unique(data.roles.map((role) => role.name));
+  }
+
+  return unique(data.apiKeys.map((apiKey) => apiKey.keyName));
+}
+
+function unique(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function formatCell(value: unknown): React.ReactNode {

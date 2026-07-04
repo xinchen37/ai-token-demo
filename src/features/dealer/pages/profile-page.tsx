@@ -13,10 +13,15 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
   const [draft, setDraft] = React.useState(profile);
   const [password, setPassword] = React.useState({ current: "", next: "", confirm: "" });
   const [message, setMessage] = React.useState("");
+  const avatarText = getAvatarText(draft.name);
+
+  React.useEffect(() => {
+    setDraft(profile);
+  }, [profile]);
 
   function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onSave(draft);
+    onSave({ ...draft, avatarText });
     setMessage("个人信息已保存到本地。");
   }
 
@@ -29,7 +34,7 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
     <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
       <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
         <div className="flex items-center gap-4">
-          <div className="flex size-16 items-center justify-center rounded-full bg-[#101a3d] text-2xl font-bold text-white">{draft.avatarText}</div>
+          <div className="flex size-16 items-center justify-center rounded-full bg-[#101a3d] text-2xl font-bold text-white">{avatarText}</div>
           <div>
             <h2 className="text-xl font-semibold text-slate-950">个人信息</h2>
             <p className="mt-1 text-sm text-slate-500">维护经销商管理员资料，数据保存在本地。</p>
@@ -52,10 +57,6 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-600">注册时间</span>
             <Input value={draft.registeredAt} onChange={(event) => setDraft((current) => ({ ...current, registeredAt: event.target.value }))} />
-          </label>
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-600">头像文字</span>
-            <Input value={draft.avatarText} onChange={(event) => setDraft((current) => ({ ...current, avatarText: event.target.value.slice(0, 2) }))} />
           </label>
           <div className="flex items-end">
             <Button type="submit" variant="primary">
@@ -83,4 +84,8 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
       </section>
     </div>
   );
+}
+
+function getAvatarText(name: string) {
+  return (name.trim() || "User").slice(0, 1).toUpperCase();
 }

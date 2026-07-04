@@ -1,10 +1,10 @@
 import { formatCurrency, maskApiKey } from "./dealer-utils";
 import type { RecordPageConfig } from "./pages/record-page";
 
-const modelNames = ["DeepSeek-R1", "Qwen-Max", "Seedance Video 2.0", "GLM-4-Plus"];
-const customerNames = ["杭州星河科技有限公司", "上海云阶智能有限公司", "深圳北辰数据集团"];
-const salesNames = ["林夕", "陈安", "许岩", "唐槿"];
-const productNames = ["通用对话套餐-标准版", "视频生成体验包"];
+const formatPermissions = (value: unknown) => {
+  const labels = parsePermissionLabels(value);
+  return labels.length > 0 ? labels.join("、") : "-";
+};
 
 export const pageConfigs = {
   models: {
@@ -55,7 +55,7 @@ export const pageConfigs = {
     fields: [
       { key: "name", label: "产品名称", required: true },
       { key: "packageMode", label: "套餐模式", kind: "select", options: ["按量包月", "按金额包月", "不限时包量", "不限时按量"] },
-      { key: "relatedModels", label: "关联模型", placeholder: modelNames.join(",") },
+      { key: "relatedModels", label: "关联模型", kind: "multiSelect", optionSource: "models" },
       { key: "inputPrice", label: "输入价格", kind: "number" },
       { key: "outputPrice", label: "输出价格", kind: "number" },
       { key: "cachePrice", label: "缓存价格", kind: "number" },
@@ -85,7 +85,7 @@ export const pageConfigs = {
       { key: "contact", label: "联系人", required: true },
       { key: "phone", label: "联系电话", required: true },
       { key: "loginAccount", label: "登录账号", required: true },
-      { key: "sales", label: "所属销售", kind: "select", options: salesNames },
+      { key: "sales", label: "所属销售", kind: "select", optionSource: "salesMembers" },
       { key: "totalSpend", label: "累计消费", kind: "number" },
       { key: "type", label: "客户类型", kind: "select", options: ["新注册", "跟进中", "已成交"] },
       { key: "status", label: "状态", kind: "select", options: ["未激活", "正常", "已冻结"] },
@@ -109,9 +109,9 @@ export const pageConfigs = {
       { key: "expiresAt", label: "过期时间" },
     ],
     fields: [
-      { key: "customerName", label: "客户名称", kind: "select", options: customerNames },
+      { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
       { key: "keyName", label: "Key 名称", required: true },
-      { key: "modelName", label: "关联模型", kind: "select", options: modelNames },
+      { key: "modelName", label: "关联模型", kind: "select", optionSource: "models" },
       { key: "quotaTotal", label: "总额度", kind: "number" },
       { key: "quotaRemain", label: "剩余额度", kind: "number" },
       { key: "dailyLimit", label: "每日限额", kind: "number" },
@@ -141,10 +141,10 @@ export const pageConfigs = {
     ],
     fields: [
       { key: "recordNo", label: "记录ID", required: true },
-      { key: "customerName", label: "客户名称", kind: "select", options: customerNames },
+      { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
       { key: "registerPhone", label: "注册手机" },
       { key: "keyName", label: "API Key 名称" },
-      { key: "modelName", label: "调用模型", kind: "select", options: modelNames },
+      { key: "modelName", label: "调用模型", kind: "select", optionSource: "models" },
       { key: "inputTokens", label: "输入Token", kind: "number" },
       { key: "outputTokens", label: "输出Token", kind: "number" },
       { key: "amount", label: "消费金额", kind: "number" },
@@ -173,8 +173,8 @@ export const pageConfigs = {
       { key: "requestedAt", label: "请求时间" },
       { key: "finishedAt", label: "结束时间" },
       { key: "durationMs", label: "耗时(ms)", kind: "number" },
-      { key: "customerName", label: "客户名称", kind: "select", options: customerNames },
-      { key: "modelName", label: "模型", kind: "select", options: modelNames },
+      { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
+      { key: "modelName", label: "模型", kind: "select", optionSource: "models" },
       { key: "statusCode", label: "状态码", kind: "number" },
     ],
   } satisfies RecordPageConfig,
@@ -195,10 +195,10 @@ export const pageConfigs = {
     ],
     fields: [
       { key: "recordNo", label: "记录ID", required: true },
-      { key: "customerName", label: "客户名称", kind: "select", options: customerNames },
+      { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
       { key: "registerPhone", label: "注册手机" },
       { key: "keyName", label: "API Key 名称" },
-      { key: "modelName", label: "调用模型", kind: "select", options: modelNames },
+      { key: "modelName", label: "调用模型", kind: "select", optionSource: "models" },
       { key: "inputTokens", label: "输入Token", kind: "number" },
       { key: "outputTokens", label: "输出Token", kind: "number" },
       { key: "amount", label: "消费金额", kind: "number" },
@@ -222,8 +222,8 @@ export const pageConfigs = {
     ],
     fields: [
       { key: "contractNo", label: "合同号", required: true },
-      { key: "customerName", label: "客户名称", kind: "select", options: customerNames },
-      { key: "productName", label: "产品名称", kind: "select", options: productNames },
+      { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
+      { key: "productName", label: "产品名称", kind: "select", optionSource: "products" },
       { key: "productInfo", label: "产品信息", kind: "textarea" },
       { key: "orderedAt", label: "下单时间" },
       { key: "dailyLimit", label: "每日限额" },
@@ -250,7 +250,7 @@ export const pageConfigs = {
     ],
     fields: [
       { key: "billNo", label: "账单ID", required: true },
-      { key: "customerName", label: "客户名称", kind: "select", options: customerNames },
+      { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
       { key: "period", label: "账期" },
       { key: "openingBalance", label: "期初余额", kind: "number" },
       { key: "recharge", label: "本期充值", kind: "number" },
@@ -275,7 +275,7 @@ export const pageConfigs = {
     fields: [
       { key: "name", label: "姓名", required: true },
       { key: "loginAccount", label: "登录账号", required: true },
-      { key: "role", label: "角色", kind: "select", options: ["管理员", "财务", "销售", "运维"] },
+      { key: "role", label: "角色", kind: "select", optionSource: "roles" },
       { key: "status", label: "状态", kind: "select", options: ["启用", "停用"] },
     ],
   } satisfies RecordPageConfig,
@@ -288,13 +288,13 @@ export const pageConfigs = {
     columns: [
       { key: "name", label: "角色名称" },
       { key: "description", label: "角色描述" },
-      { key: "permissions", label: "权限列表" },
+      { key: "permissions", label: "权限列表", format: formatPermissions },
       { key: "status", label: "状态" },
     ],
     fields: [
       { key: "name", label: "角色名称", required: true },
       { key: "description", label: "角色描述", kind: "textarea" },
-      { key: "permissions", label: "权限配置", kind: "textarea" },
+      { key: "permissions", label: "权限配置", kind: "permissionMatrix" },
       { key: "status", label: "状态", kind: "select", options: ["启用", "停用"] },
     ],
   } satisfies RecordPageConfig,
@@ -318,7 +318,7 @@ export const pageConfigs = {
       { key: "contact", label: "联系人", required: true },
       { key: "phone", label: "联系电话", required: true },
       { key: "loginAccount", label: "登录账号", required: true },
-      { key: "sales", label: "所属销售", kind: "select", options: salesNames },
+      { key: "sales", label: "所属销售", kind: "select", optionSource: "salesMembers" },
       { key: "totalSpend", label: "累计消费", kind: "number" },
       { key: "type", label: "客户类型", kind: "select", options: ["新注册", "跟进中", "已成交"] },
       { key: "status", label: "状态", kind: "select", options: ["未激活", "正常", "已冻结"] },
@@ -326,3 +326,29 @@ export const pageConfigs = {
     ],
   } satisfies RecordPageConfig,
 };
+
+function parsePermissionLabels(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((item): item is { moduleLabel: string; actions: string[] } =>
+        typeof item === "object"
+        && item !== null
+        && "moduleLabel" in item
+        && "actions" in item
+        && Array.isArray((item as { actions?: unknown }).actions),
+      )
+      .filter((item) => item.actions.length > 0)
+      .map((item) => item.moduleLabel);
+  } catch {
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+}

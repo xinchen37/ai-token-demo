@@ -136,7 +136,7 @@ export interface Bill extends BaseRecord {
 export interface TeamMember extends BaseRecord {
   name: string;
   loginAccount: string;
-  role: "管理员" | "财务" | "销售" | "运维";
+  role: string;
   status: "启用" | "停用";
   lastLoginAt: string;
 }
@@ -187,13 +187,15 @@ export interface DealerData {
 
 export type EntityRecord = DealerData[EntityKey][number];
 
-export type FieldKind = "text" | "number" | "select" | "textarea" | "datetime";
+export type FieldKind = "text" | "number" | "select" | "multiSelect" | "permissionMatrix" | "textarea" | "datetime";
+export type FieldOptionSource = "customers" | "models" | "products" | "salesMembers" | "apiKeys" | "roles";
 
 export interface FieldConfig {
   key: string;
   label: string;
   kind?: FieldKind;
   options?: string[];
+  optionSource?: FieldOptionSource;
   required?: boolean;
   placeholder?: string;
 }
