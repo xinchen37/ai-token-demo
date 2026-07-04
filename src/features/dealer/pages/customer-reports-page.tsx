@@ -34,7 +34,8 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
   const [activeTab, setActiveTab] = React.useState<ReportTab>("stats");
   const [draftFilters, setDraftFilters] = React.useState<ReportFilters>(() => createDefaultFilters(data));
   const [filters, setFilters] = React.useState<ReportFilters>(() => createDefaultFilters(data));
-  const filteredRecords = React.useMemo(() => filterConsumptionRecords(data, filters), [data, filters]);
+  const reportRecords = React.useMemo(() => buildReportConsumptionRecords(data), [data]);
+  const filteredRecords = React.useMemo(() => filterConsumptionRecords(data, reportRecords, filters), [data, reportRecords, filters]);
   const metrics = React.useMemo(() => buildReportMetrics(data, filteredRecords, filters), [data, filteredRecords, filters]);
   const detailRows = React.useMemo(() => buildDetailRows(data, filteredRecords), [data, filteredRecords]);
   const salesOptions = React.useMemo(() => unique(data.customers.map((customer) => customer.sales)), [data.customers]);
@@ -425,11 +426,82 @@ function createDefaultFilters(data: DealerData): ReportFilters {
   };
 }
 
-function filterConsumptionRecords(data: DealerData, filters: ReportFilters) {
+function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
+  const existingIds = new Set(data.consumptions.map((record) => record.id));
+  const generatedRecords: ConsumptionRecord[] = [];
+  const availableModels = data.models.filter((model) => model.status === "可用");
+  const reportStart = startOfDay(now);
+  reportStart.setDate(reportStart.getDate() - 44);
+
+  for (const [customerIndex, customer] of data.customers.entries()) {
+    const customerCreatedAt = parseLocalDateTime(customer.createdAt);
+    const customerApiKeys = data.apiKeys.filter((key) => key.customerName === customer.company && key.status === "已启用");
+    const customerModels = unique([
+      ...customerApiKeys.map((key) => key.modelName),
+      ...availableModels
+        .filter((_, modelIndex) => (modelIndex + customerIndex) % 2 === 0)
+        .slice(0, 2)
+        .map((model) => model.name),
+    ]).filter((modelName) => data.models.some((model) => model.name === modelName));
+
+    for (let dayIndex = 0; dayIndex < 45; dayIndex += 1) {
+      const day = new Date(reportStart);
+      day.setDate(reportStart.getDate() + dayIndex);
+      if (day < startOfDay(customerCreatedAt) || day > now) {
+        continue;
+      }
+
+      for (const [modelIndex, modelName] of customerModels.entries()) {
+        const activityScore = stableNumber(`${customer.id}-${modelName}-${dayIndex}`, 100);
+        const frequency = customer.status === "正常" ? 64 : customer.status === "未激活" ? 24 : 42;
+        if (activityScore > frequency) {
+          continue;
+        }
+
+        const model = data.models.find((item) => item.name === modelName);
+        const baseTokens = model?.type === "视频" ? 45_000 : 90_000;
+        const inputTokens = baseTokens + stableNumber(`${customer.id}-${modelName}-input-${dayIndex}`, model?.type === "视频" ? 70_000 : 420_000);
+        const outputTokens = Math.round(inputTokens * (0.42 + stableNumber(`${customer.id}-${modelName}-ratio-${dayIndex}`, 28) / 100));
+        const inputPrice = model?.inputPrice ?? 6;
+        const outputPrice = model?.outputPrice ?? 18;
+        const amount = roundCurrency(((inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice) * 1000);
+        const hour = 9 + stableNumber(`${customer.id}-${modelName}-hour-${dayIndex}`, 10);
+        const minute = stableNumber(`${customer.id}-${modelName}-minute-${dayIndex}`, 60);
+        const calledAt = `${formatDate(day)} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+        const apiKey = customerApiKeys.find((key) => key.modelName === modelName);
+        const id = `report-${customer.id}-${modelName}-${formatDate(day)}`.replace(/\s+/g, "-");
+
+        if (existingIds.has(id)) {
+          continue;
+        }
+
+        generatedRecords.push({
+          id,
+          recordNo: `RPT${formatDate(day).replace(/-/g, "")}${String(generatedRecords.length + 1).padStart(4, "0")}`,
+          customerName: customer.company,
+          registerPhone: customer.loginAccount,
+          keyName: apiKey?.keyName ?? "默认统计 Key",
+          modelName,
+          inputTokens,
+          outputTokens,
+          amount,
+          calledAt,
+          status: "成功",
+          createdAt: calledAt,
+          updatedAt: calledAt,
+        });
+      }
+    }
+  }
+
+  return [...data.consumptions, ...generatedRecords];
+}
+
+function filterConsumptionRecords(data: DealerData, records: ConsumptionRecord[], filters: ReportFilters) {
   const { start, end } = getDateRange(filters);
   const salesByCustomer = new Map(data.customers.map((customer) => [customer.company, customer.sales]));
 
-  return data.consumptions.filter((record) => {
+  return records.filter((record) => {
     const calledAt = parseLocalDateTime(record.calledAt);
     return calledAt >= start
       && calledAt < end
@@ -445,9 +517,12 @@ function buildReportMetrics(data: DealerData, records: ConsumptionRecord[], filt
   const tokens = records.reduce((sum, record) => sum + record.inputTokens + record.outputTokens, 0);
   const amount = records.reduce((sum, record) => sum + record.amount, 0);
   const cost = records.reduce((sum, record) => sum + calculateConsumptionCost(record, data), 0);
+  const { end } = getDateRange(filters);
   const scopedCustomers = data.customers.filter((customer) =>
     (filters.customerName === "全部客户" || customer.company === filters.customerName)
-    && (filters.salesName === "全部销售" || customer.sales === filters.salesName),
+    && (filters.salesName === "全部销售" || customer.sales === filters.salesName)
+    && parseLocalDateTime(customer.createdAt) < end
+    && (filters.modelNames.includes("全部模型") || customerNames.has(customer.company)),
   );
 
   return {
@@ -483,7 +558,7 @@ function buildDetailRows(data: DealerData, records: ConsumptionRecord[]): Detail
     current.tokens += record.inputTokens + record.outputTokens;
     current.amount += record.amount;
     current.count += 1;
-    current.averageDuration += logsByCustomer.get(`${record.customerName}-${record.modelName}`) ?? 0;
+    current.averageDuration += logsByCustomer.get(`${record.customerName}-${record.modelName}`) ?? estimateDuration(record);
     current.lastCalledAt = parseLocalDateTime(record.calledAt) > parseLocalDateTime(current.lastCalledAt) ? record.calledAt : current.lastCalledAt;
     grouped.set(record.customerName, current);
   }
@@ -554,8 +629,14 @@ function getDateRange(filters: ReportFilters) {
 
   return {
     start: parseLocalDateTime(`${filters.customStart} 00:00`),
-    end: parseLocalDateTime(`${filters.customEnd} 23:59`),
+    end: addDays(parseLocalDateTime(`${filters.customEnd} 00:00`), 1),
   };
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
 }
 
 function pointX(index: number, total: number, plot: { left: number; right: number }) {
@@ -572,10 +653,32 @@ function parseLocalDateTime(value: string) {
   return new Date(value.replace(" ", "T"));
 }
 
+function formatDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function formatTrendValue(value: number, metric: TrendMetric) {
   if (metric === "amount") return formatCurrency(value);
   if (metric === "tokens") return `${formatNumber(value)} Tokens`;
   return `${formatNumber(value)} 次`;
+}
+
+function stableNumber(seed: string, max: number) {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash % max;
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function estimateDuration(record: ConsumptionRecord) {
+  const tokens = record.inputTokens + record.outputTokens;
+  const baseDuration = record.modelName.includes("Video") ? 8_000 : 1_200;
+  return Math.round(baseDuration + tokens / 420 + stableNumber(`${record.customerName}-${record.modelName}-${record.calledAt}`, 1_600));
 }
 
 function unique(values: string[]) {
