@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   Coins,
+  CreditCard,
   Download,
   Eye,
   EyeOff,
@@ -17,8 +18,11 @@ import {
   FileText,
   Headphones,
   Home,
+  Landmark,
+  LayoutGrid,
   Layers,
   LineChart,
+  List,
   LogOut,
   Menu,
   Plus,
@@ -30,6 +34,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Trophy,
   UserRound,
   Users,
   Wallet,
@@ -52,6 +57,7 @@ import {
 import { useDealerStore } from "@/features/dealer/local-store";
 import type {
   Bill,
+  AiModel,
   ConsumptionRecord,
   Customer,
   CustomerApiKey,
@@ -59,6 +65,19 @@ import type {
   EnterpriseMember,
   EnterpriseRole,
 } from "@/features/dealer/types";
+
+const modelLogoModules = import.meta.glob("../../images/modelsLogo/*", {
+  eager: true,
+  import: "default",
+  query: "?url",
+}) as Record<string, string>;
+
+const modelLogoUrls = Object.fromEntries(
+  Object.entries(modelLogoModules).map(([path, url]) => [
+    path.split("/").pop()?.replace(/\.[^.]+$/, "").toUpperCase() ?? "",
+    url,
+  ]),
+);
 
 type EnterprisePageKey =
   | "dashboard"
@@ -68,6 +87,7 @@ type EnterprisePageKey =
   | "consumptions"
   | "usageLogs"
   | "bills"
+  | "payment"
   | "members"
   | "roles"
   | "teamReports"
@@ -104,6 +124,7 @@ const routes: Record<EnterprisePageKey, string> = {
   consumptions: "/enterprise/consumptions",
   usageLogs: "/enterprise/usage-logs",
   bills: "/enterprise/bills",
+  payment: "/enterprise/payment",
   members: "/enterprise/members",
   roles: "/enterprise/roles",
   teamReports: "/enterprise/team-reports",
@@ -125,6 +146,7 @@ const enterprisePermissionModules: EnterprisePermissionModule[] = [
   { key: "consumptions", label: "消费记录", actions: ["查看", "导出"] },
   { key: "usageLogs", label: "使用日志", actions: ["查看", "导出"] },
   { key: "bills", label: "账单", actions: ["查看", "导出"] },
+  { key: "payment", label: "支付", actions: ["查看"] },
   {
     key: "members",
     label: "团队成员",
@@ -156,7 +178,13 @@ const navGroups: Array<{ label: string; items: NavEntry[] }> = [
       { key: "usageLogs", label: "使用日志", icon: BookOpenText },
     ],
   },
-  { label: "财务", items: [{ key: "bills", label: "账单", icon: FileText }] },
+  {
+    label: "财务",
+    items: [
+      { key: "bills", label: "账单", icon: FileText },
+      { key: "payment", label: "支付", icon: CreditCard },
+    ],
+  },
   {
     label: "管理",
     items: [
@@ -374,6 +402,9 @@ export function EnterpriseSystem({
       ) : null}
       {effectivePage === "bills" ? (
         <Bills data={data} customer={context.customer} />
+      ) : null}
+      {effectivePage === "payment" ? (
+        <PaymentCenter data={data} customer={context.customer} />
       ) : null}
       {effectivePage === "members" ? (
         <Members
@@ -645,31 +676,38 @@ function Dashboard({
 }) {
   const [trendMetric, setTrendMetric] = React.useState<TrendMetric>("amount");
   const [trendRange, setTrendRange] = React.useState<TrendRange>("today");
-  const [rankMetric, setRankMetric] =
-    React.useState<EnterpriseRankMetric>("model");
-  const [rankRange, setRankRange] = React.useState<TrendRange>("last7");
   const records = getCustomerConsumptions(data, customer);
+  const dashboardRecords = React.useMemo(
+    () => buildEnterpriseDashboardRecords(data, customer, records),
+    [data, customer, records],
+  );
   const keys = getCustomerApiKeys(data, customer);
   const bills = getCustomerBills(data, customer);
-  const rankRecords = React.useMemo(
-    () => filterRecordsByRange(records, rankRange, getDashboardNow()),
-    [records, rankRange],
+  const rankingGroups = React.useMemo(
+    () => [
+      {
+        title: "模型消耗排行榜",
+        metric: "model" as const,
+        items: buildEnterpriseRanking(data, customer, dashboardRecords, "model", 3),
+      },
+      {
+        title: "员工消耗排行",
+        metric: "employee" as const,
+        items: buildEnterpriseRanking(data, customer, dashboardRecords, "employee", 3),
+      },
+    ],
+    [data, customer, dashboardRecords],
   );
-  const ranking = React.useMemo(
-    () => buildEnterpriseRanking(data, customer, rankRecords, rankMetric),
-    [data, customer, rankRecords, rankMetric],
-  );
-  const maxRankAmount = Math.max(...ranking.map((item) => item.amount), 1);
   const trendSeries = React.useMemo(
-    () => buildTrendSeries(records, trendMetric, trendRange, getDashboardNow()),
-    [records, trendMetric, trendRange],
+    () => buildTrendSeries(dashboardRecords, trendMetric, trendRange, getDashboardNow()),
+    [dashboardRecords, trendMetric, trendRange],
   );
-  const totalAmount = sum(records, (record) => record.amount);
+  const totalAmount = sum(dashboardRecords, (record) => record.amount);
   const totalTokens = sum(
-    records,
+    dashboardRecords,
     (record) => record.inputTokens + record.outputTokens,
   );
-  const todayRecords = records.filter((record) =>
+  const todayRecords = dashboardRecords.filter((record) =>
     record.calledAt.startsWith("2026-07-03"),
   );
   const estimatedTodayAmount = sum(todayRecords, (record) => record.amount);
@@ -709,7 +747,7 @@ function Dashboard({
             icon={Zap}
             tone="indigo"
             label="请求次数"
-            value={formatNumber(records.length)}
+            value={formatNumber(dashboardRecords.length)}
             helperLabel="总消耗 Tokens"
             helperValue={formatNumber(totalTokens)}
           />
@@ -742,12 +780,7 @@ function Dashboard({
 
           <div>
             <div className="flex items-center justify-between">
-              <SectionTitle
-                icon={BarChart3}
-                title={
-                  rankMetric === "model" ? "模型消耗排行榜" : "员工消耗排行"
-                }
-              />
+              <SectionTitle icon={Trophy} title="排行榜" />
               <button
                 className="text-sm font-medium text-[#1155ff]"
                 onClick={() => onPageChange("consumptions")}
@@ -756,19 +789,15 @@ function Dashboard({
                 查看明细
               </button>
             </div>
-            <div className="mt-4 rounded-md border border-slate-200 bg-white px-6 py-5 shadow-sm shadow-slate-100">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <EnterpriseRankingTabs
-                  value={rankMetric}
-                  onChange={setRankMetric}
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              {rankingGroups.map((group) => (
+                <EnterpriseRankingCard
+                  key={group.metric}
+                  title={group.title}
+                  items={group.items}
+                  metric={group.metric}
                 />
-                <RankingRangeTabs value={rankRange} onChange={setRankRange} />
-              </div>
-              <RankingBars
-                items={ranking}
-                maxAmount={maxRankAmount}
-                metric={rankMetric}
-              />
+              ))}
             </div>
           </div>
         </div>
@@ -790,33 +819,359 @@ function Dashboard({
 }
 
 function Models({ data, customer }: { data: DealerData; customer: Customer }) {
-  const availableModelNames = new Set(
-    getCustomerApiKeys(data, customer).map((key) => key.modelName),
+  void customer;
+  const [keyword, setKeyword] = React.useState("");
+  const [providerFilter, setProviderFilter] = React.useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = React.useState<string[]>([]);
+  const [billingFilter, setBillingFilter] = React.useState<string[]>([]);
+  const [viewMode, setViewMode] = React.useState<"cards" | "table">("cards");
+  const [detailModel, setDetailModel] = React.useState<AiModel | null>(null);
+  const providerOptions = React.useMemo(
+    () => uniqueStrings(data.models.map((model) => model.provider)),
+    [data.models],
   );
-  const models = data.models.filter(
-    (model) => model.status === "可用" || availableModelNames.has(model.name),
+  const filteredModels = React.useMemo(
+    () => data.models.filter((model) => {
+      const normalizedKeyword = keyword.trim().toLowerCase();
+      const keywordMatched = !normalizedKeyword
+        || [model.provider, model.name, model.type, model.billingType, model.abilities]
+          .some((value) => value.toLowerCase().includes(normalizedKeyword));
+      return keywordMatched
+        && (providerFilter.length === 0 || providerFilter.includes(model.provider))
+        && (typeFilter.length === 0 || typeFilter.includes(model.type))
+        && (billingFilter.length === 0 || billingFilter.includes(model.billingType));
+    }),
+    [billingFilter, data.models, keyword, providerFilter, typeFilter],
   );
+
+  function resetFilters() {
+    setKeyword("");
+    setProviderFilter([]);
+    setTypeFilter([]);
+    setBillingFilter([]);
+  }
+
   return (
-    <SimpleTable
-      columns={[
-        "厂商",
-        "模型名称",
-        "模型类型",
-        "输入价格",
-        "输出价格",
-        "计费类型",
-        "模型能力",
-      ]}
-      rows={models.map((model) => [
-        model.provider,
-        model.name,
-        model.type,
-        `${formatCurrency(model.inputPrice)}/1M`,
-        `${formatCurrency(model.outputPrice)}/1M`,
-        model.billingType,
-        model.abilities,
-      ])}
-    />
+    <div className="space-y-5">
+      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[260px] flex-1 sm:flex-none">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="pl-9 sm:w-72"
+                placeholder="搜索厂商、模型名称、能力"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+              />
+            </div>
+            <EnterpriseFilterMultiSelect label="供应商" options={providerOptions} value={providerFilter} onChange={setProviderFilter} />
+            <EnterpriseFilterMultiSelect label="模型类型" options={["对话补全", "图像", "文本转语音", "语音转文本", "视频"]} value={typeFilter} onChange={setTypeFilter} />
+            <EnterpriseFilterMultiSelect label="计费类型" options={["按量计费", "按次计费"]} value={billingFilter} onChange={setBillingFilter} />
+            <Button className="whitespace-nowrap" variant="secondary" onClick={resetFilters}>
+              <RotateCcw className="size-4" />
+              重置
+            </Button>
+          </div>
+          <EnterpriseViewModeToggle value={viewMode} onChange={setViewMode} />
+        </div>
+      </section>
+
+      {viewMode === "cards" ? (
+        <EnterpriseModelCardGrid models={filteredModels} onDetail={setDetailModel} />
+      ) : (
+        <EnterpriseModelTable models={filteredModels} onDetail={setDetailModel} />
+      )}
+
+      {detailModel ? (
+        <EnterpriseModelDetailDialog model={detailModel} onClose={() => setDetailModel(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+function EnterpriseViewModeToggle({ value, onChange }: { value: "cards" | "table"; onChange: (value: "cards" | "table") => void }) {
+  const items = [
+    { value: "cards" as const, label: "卡片视图", icon: LayoutGrid },
+    { value: "table" as const, label: "列表视图", icon: List },
+  ];
+
+  return (
+    <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 p-1">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const selected = value === item.value;
+        return (
+          <button
+            key={item.value}
+            aria-label={item.label}
+            className={cn(
+              "flex size-8 items-center justify-center rounded transition-colors",
+              selected ? "bg-[#1155ff] text-white shadow-sm" : "text-slate-500 hover:bg-white hover:text-slate-900",
+            )}
+            onClick={() => onChange(item.value)}
+            title={item.label}
+            type="button"
+          >
+            <Icon className="size-4" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function EnterpriseFilterMultiSelect({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (value: string[]) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const display = value.length === 0 ? label : `${label}(${value.length})`;
+
+  React.useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  function toggleOption(option: string) {
+    onChange(value.includes(option) ? value.filter((item) => item !== option) : [...value, option]);
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        aria-expanded={open}
+        className="flex h-10 min-w-36 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:border-slate-300"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className={value.length === 0 ? "text-slate-400" : "text-slate-700"}>{display}</span>
+        <ChevronDown className={cn("size-4 text-slate-400 transition-transform", open ? "rotate-180" : "")} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-11 z-40 min-w-44 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/70">
+          {options.map((option) => {
+            const checked = value.includes(option);
+            return (
+              <button
+                key={option}
+                className={cn(
+                  "flex h-9 w-full cursor-pointer items-center gap-2 rounded px-2.5 text-left text-sm transition-colors",
+                  checked ? "bg-blue-50 text-[#1155ff]" : "text-slate-700 hover:bg-slate-50",
+                )}
+                onClick={() => toggleOption(option)}
+                type="button"
+              >
+                <span className={cn("flex size-4 items-center justify-center rounded border", checked ? "border-[#1155ff] bg-[#1155ff] text-white" : "border-slate-300")}>
+                  {checked ? <CheckIcon /> : null}
+                </span>
+                <span className="truncate">{option}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="size-3" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M10 3 4.8 8.2 2 5.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EnterpriseModelCardGrid({ models, onDetail }: { models: AiModel[]; onDetail: (model: AiModel) => void }) {
+  if (models.length === 0) {
+    return (
+      <section className="rounded-md border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm shadow-slate-100">
+        暂无匹配数据
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      {models.map((model) => {
+        const abilityTags = model.abilities.split(",").map((item) => item.trim()).filter(Boolean);
+        return (
+          <article key={model.id} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100 transition hover:border-blue-100 hover:shadow-md hover:shadow-slate-100">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <EnterpriseModelLogo model={model} size="md" />
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold text-slate-950">{model.name}</h3>
+                  <p className="mt-1 truncate text-sm text-slate-500">{model.provider} · {model.type}</p>
+                </div>
+              </div>
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">{model.status}</span>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+              <EnterpriseModelPrice label="输入价格" value={`${formatCurrency(model.inputPrice)}/1M`} />
+              <EnterpriseModelPrice label="输出价格" value={`${formatCurrency(model.outputPrice)}/1M`} />
+              <EnterpriseModelPrice label="缓存价格" value={`${formatCurrency(model.cachePrice)}/1M`} />
+              <EnterpriseModelPrice label="计费类型" value={model.billingType} />
+            </div>
+            <div className="mt-5 flex min-h-8 flex-wrap gap-2">
+              {abilityTags.length > 0 ? abilityTags.map((tag) => (
+                <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">{tag}</span>
+              )) : <span className="text-sm text-slate-400">暂无能力标签</span>}
+            </div>
+            <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
+              <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(model)}>
+                <Eye className="size-4" />
+                详情
+              </Button>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function EnterpriseModelTable({ models, onDetail }: { models: AiModel[]; onDetail: (model: AiModel) => void }) {
+  const columns = ["厂商", "模型名称", "输入价格", "输出价格", "缓存价格", "计费类型", "模型能力"];
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
+      <div className="overflow-x-auto">
+        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+          <thead className="bg-slate-50 text-left text-slate-500">
+            <tr>
+              {columns.map((column) => (
+                <th key={column} className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium">
+                  {column}
+                </th>
+              ))}
+              <th className="sticky right-0 top-0 z-30 h-12 min-w-[120px] whitespace-nowrap border-b border-l border-slate-200 bg-slate-50 px-4 text-right font-medium shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
+                操作
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {models.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length + 1} className="h-24 px-4 text-center text-slate-500">
+                  暂无数据
+                </td>
+              </tr>
+            ) : null}
+            {models.map((model) => (
+              <tr key={model.id} className="hover:bg-slate-50/70">
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{model.provider}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  <EnterpriseModelName model={model} />
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatCurrency(model.inputPrice)}/1M Tokens</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatCurrency(model.outputPrice)}/1M Tokens</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatCurrency(model.cachePrice)}/1M Tokens</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{model.billingType}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  <ModelAbilityTags value={model.abilities} />
+                </td>
+                <td className="sticky right-0 z-20 whitespace-nowrap border-b border-l border-slate-100 bg-white px-4 py-3 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
+                  <div className="flex justify-end">
+                    <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(model)}>
+                      <Eye className="size-4" />
+                      详情
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function EnterpriseModelDetailDialog({ model, onClose }: { model: AiModel; onClose: () => void }) {
+  return (
+    <Modal
+      open
+      title="模型详情"
+      description={model.name}
+      onClose={onClose}
+    >
+      <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-7 py-6">
+        <div className="grid gap-4 md:grid-cols-2">
+          <EnterpriseDetailField label="厂商" value={model.provider} />
+          <EnterpriseDetailField label="模型名称" value={<EnterpriseModelName model={model} />} />
+          <EnterpriseDetailField label="模型类型" value={model.type} />
+          <EnterpriseDetailField label="输入价格" value={`${formatCurrency(model.inputPrice)}/1M Tokens`} />
+          <EnterpriseDetailField label="输出价格" value={`${formatCurrency(model.outputPrice)}/1M Tokens`} />
+          <EnterpriseDetailField label="缓存价格" value={`${formatCurrency(model.cachePrice)}/1M Tokens`} />
+          <EnterpriseDetailField label="计费类型" value={model.billingType} />
+          <EnterpriseDetailField label="模型能力" value={<ModelAbilityTags value={model.abilities} />} />
+        </div>
+      </div>
+      <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-7 py-5">
+        <Button className="h-10 px-5" variant="secondary" onClick={onClose}>
+          关闭
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function EnterpriseDetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
+      <div className="text-sm font-semibold text-slate-400">{label}</div>
+      <div className="mt-2 text-base font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function ModelAbilityTags({ value }: { value: string }) {
+  const tags = value.split(",").map((item) => item.trim()).filter(Boolean);
+  return (
+    <div className="flex max-w-[360px] flex-wrap gap-2">
+      {tags.length > 0 ? tags.map((tag) => (
+        <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">{tag}</span>
+      )) : <span className="text-slate-400">-</span>}
+    </div>
+  );
+}
+
+function EnterpriseModelPrice({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function EnterpriseModelName({ model }: { model: AiModel }) {
+  return (
+    <div className="flex items-center gap-3">
+      <EnterpriseModelLogo model={model} size="sm" />
+      <span className="font-medium text-slate-800">{model.name}</span>
+    </div>
+  );
+}
+
+function EnterpriseModelLogo({ model, size }: { model: AiModel; size: "sm" | "md" }) {
+  const logoText = model.logoText.toUpperCase();
+  const logoUrl = modelLogoUrls[logoText];
+  const sizeClass = size === "sm" ? "size-8 rounded" : "size-11 rounded-md";
+  const imagePaddingClass = size === "sm" ? "p-1.5" : "p-2";
+
+  return (
+    <div className={`flex ${sizeClass} shrink-0 items-center justify-center border border-blue-100 bg-blue-50 text-sm font-bold text-[#1155ff]`}>
+      {logoUrl ? (
+        <img alt={`${model.provider} Logo`} className={`h-full w-full object-contain ${imagePaddingClass}`} src={logoUrl} />
+      ) : (
+        logoText || <Bot className="size-5" />
+      )}
+    </div>
   );
 }
 
@@ -1035,43 +1390,94 @@ function ApiKeys({
           onSave={saveForm}
         />
       </Modal>
-      <SimpleTable
-        columns={[
-          "Key 名称",
-          "关联模型",
-          "额度",
-          "每日限额",
-          "API Key",
-          "IP限制",
-          "状态",
-          "最后使用",
-          "过期时间",
-          "操作",
-        ]}
-        rows={keys.map((key) => [
-          key.keyName,
-          key.modelName,
-          `${formatNumber(key.quotaRemain)} / ${formatNumber(key.quotaTotal)}`,
-          formatNumber(key.dailyLimit),
-          maskApiKey(key.apiKey),
-          key.ipWhitelist,
-          key.status,
-          key.lastUsedAt,
-          key.expiresAt,
-          <ActionButtons
-            key={key.id}
-            enabled={key.status === "已启用"}
-            onEdit={() => openEditForm(key)}
-            onToggle={() =>
-              onUpdate(key.id, {
-                status: key.status === "已启用" ? "已停用" : "已启用",
-              })
-            }
-            onDelete={() => onDelete(key.id)}
-          />,
-        ])}
+      <EnterpriseApiKeyTable
+        keys={keys}
+        onDelete={onDelete}
+        onEdit={openEditForm}
+        onToggle={(key) =>
+          onUpdate(key.id, {
+            status: key.status === "已启用" ? "已停用" : "已启用",
+          })
+        }
       />
     </div>
+  );
+}
+
+function EnterpriseApiKeyTable({
+  keys,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
+  keys: CustomerApiKey[];
+  onEdit: (key: CustomerApiKey) => void;
+  onToggle: (key: CustomerApiKey) => void;
+  onDelete: (id: string) => void;
+}) {
+  const columns = [
+    "Key 名称",
+    "关联模型",
+    "额度",
+    "每日限额",
+    "API Key",
+    "IP限制",
+    "状态",
+    "最后使用",
+    "过期时间",
+  ];
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
+      <div className="overflow-x-auto">
+        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+          <thead className="bg-slate-50 text-left text-slate-500">
+            <tr>
+              {columns.map((column) => (
+                <th key={column} className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium">
+                  {column}
+                </th>
+              ))}
+              <th className="sticky right-0 top-0 z-30 h-12 min-w-[180px] whitespace-nowrap border-b border-l border-slate-200 bg-slate-50 px-4 text-right font-medium shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
+                操作
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {keys.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length + 1} className="h-24 px-4 text-center text-slate-500">
+                  暂无数据
+                </td>
+              </tr>
+            ) : null}
+            {keys.map((key) => (
+              <tr key={key.id} className="hover:bg-slate-50/70">
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.keyName}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.modelName}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatNumber(key.quotaRemain)} / {formatNumber(key.quotaTotal)}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatNumber(key.dailyLimit)}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{maskApiKey(key.apiKey)}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.ipWhitelist}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.status}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.lastUsedAt}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.expiresAt}</td>
+                <td className="sticky right-0 z-20 whitespace-nowrap border-b border-l border-slate-100 bg-white px-4 py-3 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
+                  <div className="flex justify-end">
+                    <ActionButtons
+                      enabled={key.status === "已启用"}
+                      onEdit={() => onEdit(key)}
+                      onToggle={() => onToggle(key)}
+                      onDelete={() => onDelete(key.id)}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -1274,6 +1680,204 @@ function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
       >
         <BillDetailTable bill={selectedBill} data={data} customer={customer} />
       </Modal>
+    </div>
+  );
+}
+
+type PaymentMethod = "wechat" | "alipay" | "bank";
+
+function PaymentCenter({ data, customer }: { data: DealerData; customer: Customer }) {
+  const [method, setMethod] = React.useState<PaymentMethod>("wechat");
+  const pendingBills = React.useMemo(
+    () => buildEnterpriseBills(data, customer).filter((bill) => bill.status === "待结算"),
+    [data, customer],
+  );
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(() => pendingBills.map((bill) => bill.id));
+
+  React.useEffect(() => {
+    setSelectedIds((current) => {
+      const pendingIds = pendingBills.map((bill) => bill.id);
+      const retained = current.filter((id) => pendingIds.includes(id));
+      return retained.length > 0 ? retained : pendingIds;
+    });
+  }, [pendingBills]);
+
+  const selectedBills = pendingBills.filter((bill) => selectedIds.includes(bill.id));
+  const totalAmount = sum(selectedBills, (bill) => bill.amount);
+  const allSelected = pendingBills.length > 0 && selectedIds.length === pendingBills.length;
+
+  function toggleAll(checked: boolean) {
+    setSelectedIds(checked ? pendingBills.map((bill) => bill.id) : []);
+  }
+
+  function toggleBill(id: string, checked: boolean) {
+    setSelectedIds((current) => checked ? uniqueStrings([...current, id]) : current.filter((item) => item !== id));
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
+        <div className="border-b border-slate-100 px-6 py-5">
+          <div className="flex items-center gap-2">
+            <CreditCard className="size-5 text-slate-400" />
+            <h2 className="text-xl font-bold text-slate-950">支付中心</h2>
+          </div>
+        </div>
+
+        <div className="space-y-6 px-6 py-6">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">支付方式</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <PaymentMethodCard
+                active={method === "wechat"}
+                description="使用微信扫码完成支付"
+                label="微信"
+                tone="green"
+                onClick={() => setMethod("wechat")}
+              />
+              <PaymentMethodCard
+                active={method === "alipay"}
+                description="使用支付宝扫码完成支付"
+                label="支付宝"
+                tone="blue"
+                onClick={() => setMethod("alipay")}
+              />
+              <PaymentMethodCard
+                active={method === "bank"}
+                description="展示对公账号信息"
+                label="对公转账"
+                tone="slate"
+                onClick={() => setMethod("bank")}
+              />
+            </div>
+            {method === "bank" ? <BankTransferInfo /> : <QrPaymentInfo method={method} amount={totalAmount} />}
+          </div>
+
+          <div className="border-t border-slate-100 pt-6">
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <h3 className="text-sm font-semibold text-slate-700">待结算账单</h3>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-500">
+                <input
+                  checked={allSelected}
+                  className="size-4 accent-[#1155ff]"
+                  disabled={pendingBills.length === 0}
+                  type="checkbox"
+                  onChange={(event) => toggleAll(event.target.checked)}
+                />
+                全选
+              </label>
+            </div>
+            <div className="overflow-hidden rounded-md border border-slate-200">
+              <table className="min-w-full border-separate border-spacing-0 text-sm">
+                <thead className="bg-slate-50 text-left text-slate-500">
+                  <tr>
+                    <th className="h-11 w-12 border-b border-slate-200 px-4 font-medium" />
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">客户名称</th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">账期</th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">本期消费</th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">账单状态</th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 text-right font-medium">金额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingBills.length === 0 ? (
+                    <tr>
+                      <td className="h-24 text-center text-slate-500" colSpan={6}>
+                        暂无待结算账单
+                      </td>
+                    </tr>
+                  ) : null}
+                  {pendingBills.map((bill) => (
+                    <tr key={bill.id} className="hover:bg-slate-50/70">
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        <input
+                          checked={selectedIds.includes(bill.id)}
+                          className="size-4 accent-[#1155ff]"
+                          type="checkbox"
+                          onChange={(event) => toggleBill(bill.id, event.target.checked)}
+                        />
+                      </td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 font-medium text-slate-800">{bill.customerName}</td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">{bill.period}</td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">{formatCurrency(bill.amount)}</td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3">
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600">{bill.status}</span>
+                      </td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-right font-semibold text-slate-950">{formatCurrency(bill.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <div className="text-base font-semibold text-slate-700">
+                合计：<span className="text-slate-950">{formatCurrency(totalAmount)}</span>
+              </div>
+              <Button className="h-11 px-8" disabled={totalAmount <= 0} variant="primary">
+                支付 {formatCurrency(totalAmount)}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PaymentMethodCard({
+  active,
+  description,
+  label,
+  tone,
+  onClick,
+}: {
+  active: boolean;
+  description: string;
+  label: string;
+  tone: "green" | "blue" | "slate";
+  onClick: () => void;
+}) {
+  const toneClass = {
+    green: "text-emerald-600 bg-emerald-50",
+    blue: "text-blue-600 bg-blue-50",
+    slate: "text-slate-600 bg-slate-100",
+  }[tone];
+
+  return (
+    <button
+      className={cn(
+        "flex min-h-24 items-center gap-4 rounded-md border p-4 text-left transition-colors",
+        active ? "border-[#1155ff] bg-blue-50/40 shadow-sm shadow-blue-100" : "border-slate-200 bg-white hover:border-slate-300",
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-full", toneClass)}>
+        {label === "对公转账" ? <Landmark className="size-5" /> : <Wallet className="size-5" />}
+      </span>
+      <span>
+        <span className="block text-base font-semibold text-slate-950">{label}</span>
+        <span className="mt-1 block text-sm text-slate-400">{description}</span>
+      </span>
+    </button>
+  );
+}
+
+function QrPaymentInfo({ method, amount }: { method: Exclude<PaymentMethod, "bank">; amount: number }) {
+  return (
+    <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+      当前选择{method === "wechat" ? "微信" : "支付宝"}支付，确认后将生成 {formatCurrency(amount)} 的扫码支付信息。
+    </div>
+  );
+}
+
+function BankTransferInfo() {
+  return (
+    <div className="mt-4 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-2">
+      <div><span className="text-slate-400">户名：</span><span className="font-semibold text-slate-800">杭州 Omni AI 科技有限公司</span></div>
+      <div><span className="text-slate-400">开户行：</span><span className="font-semibold text-slate-800">招商银行杭州未来科技城支行</span></div>
+      <div><span className="text-slate-400">账号：</span><span className="font-semibold text-slate-800">5719 0088 6620 0198</span></div>
+      <div><span className="text-slate-400">备注：</span><span className="font-semibold text-slate-800">请填写企业名称与账期</span></div>
     </div>
   );
 }
@@ -2966,77 +3570,105 @@ function EnterpriseRankingTabs({
   );
 }
 
-function RankingBars({
+function EnterpriseRankingCard({
+  title,
   items,
-  maxAmount,
   metric,
 }: {
+  title: string;
   items: RankItem[];
-  maxAmount: number;
   metric: EnterpriseRankMetric;
 }) {
   const [hoveredItem, setHoveredItem] = React.useState<RankItem | null>(null);
-  const colors = ["bg-[#1155ff]", "bg-[#14c8e5]", "bg-[#f25be9]"];
-  const labelWidth = React.useMemo(() => {
-    const maxTextWidth = Math.max(
-      ...items.map((item) => estimateLabelWidth(item.name)),
-      48,
-    );
-    return Math.min(maxTextWidth, 220);
-  }, [items]);
+  const maxAmount = Math.max(...items.map((item) => item.amount), 1);
+  const colors = ["bg-teal-600", "bg-[#2f6df6]", "bg-orange-500"];
 
   return (
-    <div className="relative mt-5 space-y-3">
-      {items.length === 0 ? (
-        <div className="py-12 text-center text-sm text-slate-400">
-          暂无排行数据
-        </div>
-      ) : null}
-      {items.map((item, index) => (
-        <div key={item.name} className="flex items-center gap-2.5 py-1 text-sm">
-          <span
-            className="shrink-0 truncate text-left text-slate-500"
-            style={{ width: labelWidth }}
+    <div className="min-h-[300px] rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
+      <div className="border-b border-slate-100 px-6 py-5">
+        <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+      </div>
+      <div className="relative space-y-7 px-6 py-6">
+        {items.length === 0 ? (
+          <div className="py-12 text-center text-sm text-slate-400">
+            暂无排行数据
+          </div>
+        ) : null}
+        {items.map((item, index) => (
+          <div
+            key={item.name}
+            className="relative"
+            onMouseEnter={() => setHoveredItem(item)}
+            onMouseLeave={() => setHoveredItem(null)}
           >
-            {item.name}
-          </span>
-          <div className="relative h-3 min-w-0 flex-1 border-l border-slate-200 bg-slate-50">
-            <div
-              className={cn(
-                "h-full cursor-pointer transition-opacity hover:opacity-85",
-                index < 3 ? colors[index] : "bg-slate-300",
-              )}
-              style={{ width: `${(item.amount / maxAmount) * 100}%` }}
-              onMouseEnter={() => setHoveredItem(item)}
-              onMouseLeave={() => setHoveredItem(null)}
-            />
-            {hoveredItem?.name === item.name ? (
-              <div className="pointer-events-none absolute left-1/2 top-[-78px] z-20 w-[230px] -translate-x-1/2 rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
-                <div className="font-semibold text-slate-950">{item.name}</div>
-                <div className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-slate-500">
-                  <span>{metric === "model" ? "模型名称" : "员工姓名"}</span>
-                  <span className="font-semibold text-slate-900">
-                    {item.name}
-                  </span>
-                  <span>消耗金额</span>
-                  <span className="font-semibold text-slate-900">
-                    {formatCurrency(item.amount)}
-                  </span>
-                  <span>消耗 Token</span>
-                  <span className="font-semibold text-slate-900">
-                    {formatNumber(item.tokens)}
-                  </span>
-                </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <div className="min-w-0 text-base font-bold text-slate-800">
+                <span className="mr-1 tabular-nums">{index + 1}.</span>
+                <span className="truncate align-bottom">{item.name}</span>
               </div>
+              <div className="shrink-0 text-base font-bold tabular-nums text-slate-950">
+                {formatCurrency(item.amount)}
+              </div>
+            </div>
+            <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  index < 3 ? colors[index] : "bg-slate-300",
+                )}
+                style={{ width: `${Math.max((item.amount / maxAmount) * 100, 8)}%` }}
+              />
+            </div>
+            <div className="mt-2 truncate text-sm font-medium text-slate-400">
+              {getEnterpriseRankingMeta(item, metric)}
+            </div>
+            {hoveredItem?.name === item.name ? (
+              <EnterpriseRankingTooltip item={item} metric={metric} />
             ) : null}
           </div>
-          <span className="w-28 shrink-0 text-right font-medium text-slate-700">
-            {formatCurrency(item.amount)}
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
+}
+
+function EnterpriseRankingTooltip({
+  item,
+  metric,
+}: {
+  item: RankItem;
+  metric: EnterpriseRankMetric;
+}) {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[-118px] z-20 w-[230px] -translate-x-1/2 rounded-md border border-slate-100 bg-white p-3 text-sm text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.12)]">
+      <div className="space-y-1 font-semibold">
+        <div>
+          <span className="text-slate-400">{metric === "model" ? "模型名称" : "员工姓名"}：</span>
+          <span className="text-slate-950">{item.name}</span>
+        </div>
+        <div>
+          <span className="text-slate-400">消耗金额：</span>
+          <span className="text-slate-950">{formatCurrency(item.amount)}</span>
+        </div>
+        <div>
+          <span className="text-slate-400">消耗 Tokens：</span>
+          <span className="text-slate-950">{formatNumber(item.tokens)}</span>
+        </div>
+        <div>
+          <span className="text-slate-400">调用次数：</span>
+          <span className="text-slate-950">{formatNumber(item.count)}</span>
+        </div>
+      </div>
+      <span className="absolute -bottom-2 left-1/2 size-4 -translate-x-1/2 rotate-45 border-b border-r border-slate-100 bg-white" />
+    </div>
+  );
+}
+
+function getEnterpriseRankingMeta(item: RankItem, metric: EnterpriseRankMetric) {
+  const subject = metric === "model" ? "Tokens" : "次调用";
+  return metric === "model"
+    ? `${formatNumber(item.tokens)} ${subject} · ${formatNumber(item.count)} 次`
+    : `${formatNumber(item.count)} ${subject} · ${formatNumber(item.tokens)} Tokens`;
 }
 
 function TrendChart({
@@ -3322,13 +3954,6 @@ function formatTrendTooltipValue(value: number, metric: TrendMetric): string {
   return `${formatNumber(value)} 次`;
 }
 
-function estimateLabelWidth(label: string) {
-  return Array.from(label).reduce(
-    (total, char) => total + (/[\u4e00-\u9fff]/.test(char) ? 16 : 8),
-    12,
-  );
-}
-
 function SectionTitle({
   icon: Icon,
   title,
@@ -3456,8 +4081,8 @@ const enterpriseLegacyPermissionPages: Record<string, EnterprisePageKey[]> = {
   模型: ["models", "trial"],
   模型管理: ["models", "trial"],
   API: ["apiKeys", "consumptions", "usageLogs"],
-  财务: ["bills"],
-  财务管理: ["bills"],
+  财务: ["bills", "payment"],
+  财务管理: ["bills", "payment"],
   团队管理: ["members", "roles", "teamReports"],
   管理: ["members", "roles", "teamReports"],
   个人中心: ["profile"],
@@ -3470,6 +4095,7 @@ const enterpriseModulePages: Record<string, EnterprisePageKey[]> = {
   消费记录: ["consumptions"],
   使用日志: ["usageLogs"],
   账单: ["bills"],
+  支付: ["payment"],
   团队成员: ["members"],
   角色管理: ["roles"],
   团队报表: ["teamReports"],
@@ -3631,6 +4257,79 @@ function buildEnterpriseRanking(
   return [...grouped.values()]
     .sort((left, right) => right.amount - left.amount)
     .slice(0, limit);
+}
+
+function buildEnterpriseDashboardRecords(
+  data: DealerData,
+  customer: Customer,
+  records: ConsumptionRecord[],
+): ConsumptionRecord[] {
+  const successfulRecords = records.filter((record) => record.status === "成功");
+  const modelPool = data.models.filter((model) => model.status === "可用").slice(0, 3);
+  if (modelPool.length === 0) {
+    return successfulRecords;
+  }
+
+  const members = data.enterpriseMembers
+    .filter((member) => member.customerName === customer.company && member.status === "启用")
+    .map((member) => member.loginAccount);
+  const accounts = uniqueStrings([customer.loginAccount, ...members]);
+  const sourceKeys = getCustomerApiKeys(data, customer);
+  const now = getDashboardNow();
+  const start = new Date(now);
+  start.setDate(start.getDate() - 29);
+  start.setHours(0, 0, 0, 0);
+  const rows: ConsumptionRecord[] = [];
+
+  for (let dayIndex = 0; dayIndex < 30; dayIndex += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + dayIndex);
+    const dayFactor = 0.82 + ((dayIndex % 9) * 0.045);
+    const weekdayFactor = [0.88, 1.02, 1.08, 1.12, 1.05, 0.78, 0.72][date.getDay()] ?? 1;
+
+    modelPool.forEach((model, modelIndex) => {
+      const isVideoModel = model.type === "视频";
+      const modelWeight = modelIndex === 0 ? 1.28 : modelIndex === 1 ? 1.08 : 0.72;
+      const inputBase = isVideoModel ? 8_500_000 : modelIndex === 0 ? 118_000_000 : 76_000_000;
+      const outputBase = isVideoModel ? 6_800_000 : modelIndex === 0 ? 42_000_000 : 31_000_000;
+      const inputTokens = Math.round(inputBase * dayFactor * weekdayFactor * modelWeight);
+      const outputTokens = Math.round(outputBase * (dayFactor + 0.08) * weekdayFactor * modelWeight);
+      const amount = Number(((inputTokens / 1_000_000) * model.inputPrice + (outputTokens / 1_000_000) * model.outputPrice + (inputTokens / 1_000_000) * model.cachePrice * 0.08).toFixed(2));
+      const hour = 9 + ((dayIndex + modelIndex * 3) % 10);
+      const minute = (12 + dayIndex * 7 + modelIndex * 11) % 60;
+      const calledAt = `${formatDateOnly(date)} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
+      const fallbackRecord = successfulRecords[(dayIndex + modelIndex) % Math.max(successfulRecords.length, 1)];
+      const keyName = sourceKeys[modelIndex % Math.max(sourceKeys.length, 1)]?.keyName ?? fallbackRecord?.keyName ?? "生产环境主 Key";
+      const registerPhone = accounts[(dayIndex + modelIndex) % Math.max(accounts.length, 1)] ?? customer.loginAccount;
+
+      rows.push({
+        id: `dash-${customer.id}-${dayIndex}-${model.id}`,
+        recordNo: `DASH${formatDateOnly(date).replace(/-/g, "")}${String(modelIndex + 1).padStart(2, "0")}`,
+        customerName: customer.company,
+        registerPhone,
+        keyName,
+        modelName: model.name,
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        amount,
+        calledAt,
+        status: "成功",
+        createdAt: calledAt,
+        updatedAt: calledAt,
+      });
+    });
+  }
+
+  return rows;
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function formatDateOnly(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function filterRecordsByRange(
