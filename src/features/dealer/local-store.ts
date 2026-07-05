@@ -130,10 +130,11 @@ function completeLinkedDraft(
     const product = data.products.find((item) => item.name === draft.productName);
     return {
       ...draft,
+      contractNo: draft.contractNo || createContractNo(time),
       productInfo: draft.productInfo || buildProductInfo(product),
       orderedAt: draft.orderedAt || time,
-      dailyLimit: draft.dailyLimit || (product ? `${product.tokenLimitM}M Tokens` : ""),
-      expiresAt: draft.expiresAt || getNextYearDateTime(time),
+      dailyLimit: draft.dailyLimit || "",
+      expiresAt: draft.expiresAt || "",
     };
   }
 
@@ -210,6 +211,11 @@ function buildProductInfo(product: DealerData["products"][number] | undefined) {
   }
 
   return `${product.name}，${product.packageMode}，关联模型：${product.relatedModels}`;
+}
+
+function createContractNo(time: string) {
+  const compactDate = time.replace(/\D/g, "").slice(0, 14);
+  return `HT${compactDate}${Math.floor(Math.random() * 900 + 100)}`;
 }
 
 function getNextYearDateTime(value: string) {

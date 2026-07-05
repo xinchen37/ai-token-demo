@@ -1,25 +1,23 @@
 import * as React from "react";
-import { Check, ChevronDown, Coins, Download, LineChart, RotateCcw, Trophy, Users, Wallet, Zap } from "lucide-react";
+import { BarChart3, Check, ChevronDown, Coins, Download, RotateCcw, Users, Wallet, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { ConsumptionRecord, DealerData } from "../types";
-import { calculateConsumptionCost, formatCurrency, formatNumber, type RankMetric, type TrendMetric } from "../dealer-utils";
+import { formatCurrency, formatNumber } from "../dealer-utils";
 
 type ReportTab = "stats" | "details";
-type TimeRange = "today" | "last7" | "last30" | "month" | "lastMonth" | "custom";
+type TimeRange = "last30" | "last7" | "custom";
 
 interface ReportFilters {
   range: TimeRange;
   customStart: string;
   customEnd: string;
   customerName: string;
-  salesName: string;
   modelNames: string[];
 }
 
 interface DetailRow {
   customerName: string;
-  salesName: string;
   customerStatus: string;
   tokens: number;
   amount: number;
@@ -35,9 +33,8 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
   const [filters, setFilters] = React.useState<ReportFilters>(() => createDefaultFilters(data));
   const reportRecords = React.useMemo(() => buildReportConsumptionRecords(data), [data]);
   const filteredRecords = React.useMemo(() => filterConsumptionRecords(data, reportRecords, filters), [data, reportRecords, filters]);
-  const metrics = React.useMemo(() => buildReportMetrics(data, filteredRecords, filters), [data, filteredRecords, filters]);
+  const metrics = React.useMemo(() => buildReportMetrics(filteredRecords), [filteredRecords]);
   const detailRows = React.useMemo(() => buildDetailRows(data, filteredRecords), [data, filteredRecords]);
-  const salesOptions = React.useMemo(() => unique(data.customers.map((customer) => customer.sales)), [data.customers]);
   const modelOptions = React.useMemo(() => data.models.map((model) => model.name), [data.models]);
 
   function resetFilters() {
@@ -67,7 +64,6 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
         activeTab={activeTab}
         filters={filters}
         customerOptions={data.customers.map((customer) => customer.company)}
-        salesOptions={salesOptions}
         modelOptions={modelOptions}
         onChange={setFilters}
         onReset={resetFilters}
@@ -86,7 +82,6 @@ function ReportFilterPanel({
   activeTab,
   filters,
   customerOptions,
-  salesOptions,
   modelOptions,
   onChange,
   onReset,
@@ -94,7 +89,6 @@ function ReportFilterPanel({
   activeTab: ReportTab;
   filters: ReportFilters;
   customerOptions: string[];
-  salesOptions: string[];
   modelOptions: string[];
   onChange: (filters: ReportFilters) => void;
   onReset: () => void;
@@ -104,11 +98,8 @@ function ReportFilterPanel({
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-[140px] shrink-0">
           <Select className="h-10 rounded-md pl-3 focus:border-[#1155ff] focus:ring-blue-100" value={filters.range} onChange={(event) => onChange({ ...filters, range: event.target.value as TimeRange })} aria-label="时间范围">
-            <option value="today">今天</option>
-            <option value="last7">近7天</option>
             <option value="last30">近30天</option>
-            <option value="month">本月</option>
-            <option value="lastMonth">上月</option>
+            <option value="last7">近7天</option>
             <option value="custom">自定义</option>
           </Select>
         </div>
@@ -121,7 +112,6 @@ function ReportFilterPanel({
         ) : null}
 
         <FilterSelect ariaLabel="客户名称" className="w-[200px] shrink-0" value={filters.customerName} onChange={(value) => onChange({ ...filters, customerName: value })} options={["全部客户", ...customerOptions]} />
-        <FilterSelect ariaLabel="所属销售" className="w-[180px] shrink-0" value={filters.salesName} onChange={(value) => onChange({ ...filters, salesName: value })} options={["全部销售", ...salesOptions]} />
         <ModelMultiSelect value={filters.modelNames} options={modelOptions} onChange={(modelNames) => onChange({ ...filters, modelNames })} />
 
         <div className="ml-auto flex shrink-0 gap-2">
@@ -214,42 +204,29 @@ function ModelMultiSelect({ value, options, onChange }: { value: string[]; optio
   );
 }
 
-function StatsReport({ data, filters, records, metrics }: { data: DealerData; filters: ReportFilters; records: ConsumptionRecord[]; metrics: ReturnType<typeof buildReportMetrics> }) {
-  const [trendMetric, setTrendMetric] = React.useState<TrendMetric>("amount");
-  const [rankMetric, setRankMetric] = React.useState<RankMetric>("model");
-  const trendPoints = React.useMemo(() => buildReportTrend(records, trendMetric, filters), [records, trendMetric, filters]);
-  const ranks = React.useMemo(() => buildReportRanking(data, records, rankMetric), [data, records, rankMetric]);
-  const maxRankAmount = Math.max(...ranks.map((item) => item.amount), 1);
+function StatsReport({ filters, records, metrics }: { data: DealerData; filters: ReportFilters; records: ConsumptionRecord[]; metrics: ReturnType<typeof buildReportMetrics> }) {
+  const timeSeries = React.useMemo(() => buildTimeSeries(records, filters), [filters, records]);
+  const modelNames = React.useMemo(() => unique(records.map((record) => record.modelName)), [records]);
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-4 gap-4">
-        <ReportMetric icon={Wallet} tone="cyan" label="消费总额" value={formatCurrency(metrics.amount)} helperLabel="户均消费" helperValue={formatCurrency(metrics.averageCustomerSpend)} />
-        <ReportMetric icon={Coins} tone="pink" label="总成本" value={formatCurrency(metrics.cost)} helperLabel="净利润" helperValue={formatCurrency(metrics.profit)} />
-        <ReportMetric icon={Users} tone="blue" label="客户总数" value={formatNumber(metrics.customerCount)} helperLabel="活跃客户数" helperValue={formatNumber(metrics.activeCustomerCount)} />
-        <ReportMetric icon={Zap} tone="indigo" label="请求总次数" value={formatNumber(metrics.requestCount)} helperLabel="消耗 Tokens" helperValue={formatNumber(metrics.tokens)} />
+        <ReportMetric icon={Wallet} tone="cyan" label="消费总额（¥）" value={formatCurrency(metrics.amount)} />
+        <ReportMetric icon={Coins} tone="pink" label="消耗Token总数" value={formatTokenOverview(metrics.tokens)} />
+        <ReportMetric icon={Zap} tone="indigo" label="请求总次数" value={formatNumber(metrics.requestCount)} />
+        <ReportMetric icon={Users} tone="blue" label="客户总数" value={formatNumber(metrics.customerCount)} />
       </div>
 
       <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <LineChart className="size-5 text-slate-400" />
-            <h2 className="text-lg font-bold text-slate-950">模型数据分析</h2>
-          </div>
-          <MetricTabs value={trendMetric} onChange={setTrendMetric} />
+        <div className="flex items-center gap-3">
+          <BarChart3 className="size-5 text-slate-400" />
+          <h2 className="text-lg font-bold text-slate-950">模型数据分析</h2>
         </div>
-        <MiniTrendChart metric={trendMetric} points={trendPoints} />
-      </section>
-
-      <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Trophy className="size-5 text-slate-400" />
-            <h2 className="text-lg font-bold text-slate-950">排行榜</h2>
-          </div>
-          <RankingTabs value={rankMetric} onChange={setRankMetric} />
+        <div className="mt-5 space-y-4">
+          <TimeBarChart title="模型消耗金额" items={timeSeries.map((item) => ({ label: item.label, total: item.amount, byModel: item.amountByModel }))} modelNames={modelNames} formatValue={formatCurrency} tone="blue" />
+          <TimeBarChart title="模型消耗Tokens" items={timeSeries.map((item) => ({ label: item.label, total: item.tokens, byModel: item.tokensByModel }))} modelNames={modelNames} formatValue={formatNumber} tone="cyan" />
+          <TimeBarChart title="模型调用次数" items={timeSeries.map((item) => ({ label: item.label, total: item.count, byModel: item.countByModel }))} modelNames={modelNames} formatValue={(value) => `${formatNumber(value)} 次`} tone="pink" />
         </div>
-        <RankBars items={ranks} maxAmount={maxRankAmount} />
       </section>
     </div>
   );
@@ -261,19 +238,18 @@ function DetailReport({ rows }: { rows: DetailRow[] }) {
       <table className="min-w-full border-separate border-spacing-0 text-sm">
         <thead className="bg-slate-50 text-left text-slate-500">
           <tr>
-            {["客户名称", "所属销售", "客户状态", "消耗Token", "消费金额（¥）", "调用次数", "平均响应时间（ms）", "最后调用时间"].map((label) => (
+            {["客户名称", "客户状态", "消耗Token", "消费金额（¥）", "调用次数", "平均响应时间（ms）", "最后调用时间"].map((label) => (
               <th key={label} className="h-12 whitespace-nowrap border-b border-slate-200 px-4 font-medium">{label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr><td className="h-24 px-4 text-center text-slate-500" colSpan={8}>暂无匹配数据</td></tr>
+            <tr><td className="h-24 px-4 text-center text-slate-500" colSpan={7}>暂无匹配数据</td></tr>
           ) : null}
           {rows.map((row) => (
             <tr key={row.customerName} className="hover:bg-slate-50/70">
               <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{row.customerName}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{row.salesName}</td>
               <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{row.customerStatus}</td>
               <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{formatNumber(row.tokens)}</td>
               <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{formatCurrency(row.amount)}</td>
@@ -288,7 +264,7 @@ function DetailReport({ rows }: { rows: DetailRow[] }) {
   );
 }
 
-function ReportMetric({ icon: Icon, tone, label, value, helperLabel, helperValue }: { icon: React.ComponentType<{ className?: string }>; tone: "cyan" | "pink" | "blue" | "indigo"; label: string; value: string; helperLabel: string; helperValue: string }) {
+function ReportMetric({ icon: Icon, tone, label, value }: { icon: React.ComponentType<{ className?: string }>; tone: "cyan" | "pink" | "blue" | "indigo"; label: string; value: string }) {
   const toneClasses = {
     cyan: { card: "from-white to-cyan-50", icon: "border-cyan-200 bg-cyan-100/70 text-cyan-500" },
     pink: { card: "from-white to-pink-50", icon: "border-pink-200 bg-pink-100/70 text-pink-400" },
@@ -297,13 +273,11 @@ function ReportMetric({ icon: Icon, tone, label, value, helperLabel, helperValue
   }[tone];
 
   return (
-    <div className={`min-h-[118px] rounded-md border border-slate-200 bg-gradient-to-br ${toneClasses.card} p-5 shadow-sm shadow-slate-100`}>
+    <div className={`min-h-[112px] rounded-md border border-slate-200 bg-gradient-to-br ${toneClasses.card} p-5 shadow-sm shadow-slate-100`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-xs text-slate-400">{label}</div>
-          <div className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-950">{value}</div>
-          <div className="mt-4 text-xs text-slate-400">{helperLabel}</div>
-          <div className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-950">{helperValue}</div>
+          <div className="mt-4 whitespace-nowrap text-[clamp(1.35rem,1.55vw,1.9rem)] font-semibold tracking-tight text-slate-950" title={value}>{value}</div>
         </div>
         <div className={`flex size-12 shrink-0 items-center justify-center rounded-full border ${toneClasses.icon}`}>
           <Icon className="size-6" />
@@ -313,97 +287,149 @@ function ReportMetric({ icon: Icon, tone, label, value, helperLabel, helperValue
   );
 }
 
-function MetricTabs({ value, onChange }: { value: TrendMetric; onChange: (value: TrendMetric) => void }) {
-  const items: Array<{ label: string; value: TrendMetric }> = [
-    { label: "消耗金额", value: "amount" },
-    { label: "消耗Tokens", value: "tokens" },
-    { label: "调用次数", value: "calls" },
-  ];
-  return <TabButtons items={items} value={value} onChange={onChange} />;
-}
-
-function RankingTabs({ value, onChange }: { value: RankMetric; onChange: (value: RankMetric) => void }) {
-  const items: Array<{ label: string; value: RankMetric }> = [
-    { label: "模型消耗", value: "model" },
-    { label: "销售人员消耗", value: "sales" },
-    { label: "客户消耗", value: "customer" },
-  ];
-  return <TabButtons items={items} value={value} onChange={onChange} />;
-}
-
-function TabButtons<T extends string>({ items, value, onChange }: { items: Array<{ label: string; value: T }>; value: T; onChange: (value: T) => void }) {
-  return (
-    <div className="flex gap-6">
-      {items.map((item) => (
-        <button key={item.value} className={`border-b-2 pb-2 text-sm font-medium ${value === item.value ? "border-[#1155ff] text-[#1155ff]" : "border-transparent text-slate-400 hover:text-slate-600"}`} onClick={() => onChange(item.value)} type="button">
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function MiniTrendChart({ metric, points }: { metric: TrendMetric; points: Array<{ label: string; value: number }> }) {
+function TimeBarChart({
+  title,
+  items,
+  modelNames,
+  formatValue,
+  tone,
+}: {
+  title: string;
+  items: Array<{ label: string; total: number; byModel: Record<string, number> }>;
+  modelNames: string[];
+  formatValue: (value: number) => string;
+  tone: "blue" | "cyan" | "pink";
+}) {
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
-  const width = 1200;
-  const height = 300;
-  const plot = { top: 32, right: 1180, bottom: 250, left: 44 };
-  const maxValue = Math.max(...points.map((point) => point.value), 1);
-  const polyline = points.map((point, index) => `${pointX(index, points.length, plot)},${plot.bottom - (point.value / maxValue) * (plot.bottom - plot.top)}`).join(" ");
-  const hovered = hoveredIndex === null ? null : points[hoveredIndex];
+  const width = 1100;
+  const height = 330;
+  const plot = { top: 32, right: 1074, bottom: 262, left: 72 };
+  const maxValue = Math.max(...items.map((item) => item.total), 1);
+  const chartMax = maxValue * 1.15;
+  const barAreaWidth = plot.right - plot.left;
+  const slotWidth = items.length === 0 ? barAreaWidth : barAreaWidth / items.length;
+  const barWidth = Math.min(42, slotWidth * 0.52);
+  const barRadius = 8;
+  const minSegmentHeight = 8;
+  const hovered = hoveredIndex === null ? null : items[hoveredIndex];
+  const palette = getStackPalette(tone);
 
   return (
-    <div className="mt-6 h-[300px] overflow-hidden">
-      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`}>
-        {[0, 1, 2, 3, 4].map((tick) => <line key={tick} x1={plot.left} x2={plot.right} y1={plot.top + tick * 54} y2={plot.top + tick * 54} stroke="#eef1f5" />)}
-        {points.map((point, index) => {
-          const x = pointX(index, points.length, plot);
-          return <line key={`${point.label}-${index}`} x1={x} x2={x} y1={plot.top} y2={plot.bottom} stroke="#f3f5f8" />;
-        })}
-        <polyline points={polyline} fill="none" stroke="#3a6fff" strokeWidth="2.5" />
-        {points.map((point, index) => {
-          const x = pointX(index, points.length, plot);
-          const y = plot.bottom - (point.value / maxValue) * (plot.bottom - plot.top);
-          return (
-            <g key={`${point.label}-${index}`} onMouseEnter={() => setHoveredIndex(index)} onMouseLeave={() => setHoveredIndex(null)}>
-              <circle cx={x} cy={y} r={hoveredIndex === index ? 5 : 3} fill="#3a6fff" />
-              <circle cx={x} cy={y} r="14" className="cursor-pointer" fill="transparent" />
-            </g>
-          );
-        })}
-        {points.filter((_, index) => index === 0 || index === points.length - 1 || index % Math.ceil(points.length / 6) === 0).map((point, index, labels) => {
-          const originalIndex = points.indexOf(point);
-          const x = pointX(originalIndex, points.length, plot);
-          return <text key={`${point.label}-${index}`} x={x} y="285" fill="#9ca3af" fontSize="13" textAnchor={index === 0 ? "start" : index === labels.length - 1 ? "end" : "middle"}>{point.label}</text>;
-        })}
-        {hovered ? (
-          <foreignObject x={Math.min(pointX(hoveredIndex ?? 0, points.length, plot) + 12, plot.right - 180)} y="42" width="170" height="70">
-            <div className="rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
-              <div className="font-semibold text-slate-950">{hovered.label}</div>
-              <div className="mt-2 font-semibold text-slate-900">{formatTrendValue(hovered.value, metric)}</div>
-            </div>
-          </foreignObject>
+    <section className="rounded-md border border-slate-100 bg-slate-50/60 p-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,auto)]">
+        <div className="flex min-w-0 items-center gap-3">
+          <h3 className="shrink-0 text-base font-semibold text-slate-900">{title}</h3>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center justify-start gap-x-4 gap-y-2 lg:justify-end">
+          {modelNames.map((modelName, index) => (
+            <span key={modelName} className="inline-flex max-w-[180px] items-center gap-2 text-sm font-medium text-slate-500">
+              <span className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: palette[index % palette.length] }} />
+              <span className="truncate">{modelName}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 h-[330px] overflow-hidden">
+        {items.length === 0 ? <div className="py-8 text-center text-sm text-slate-400">暂无数据</div> : null}
+        {items.length > 0 ? (
+          <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`}>
+            {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+              const y = plot.bottom - tick * (plot.bottom - plot.top);
+              return (
+                <g key={tick}>
+                  <line x1={plot.left} x2={plot.right} y1={y} y2={y} stroke="#e8edf3" />
+                  <text x={plot.left - 12} y={y + 5} fill="#94a3b8" fontSize="14" fontWeight="600" textAnchor="end">
+                    {formatCompactValue(chartMax * tick, tone)}
+                  </text>
+                </g>
+              );
+            })}
+            <line x1={plot.left} x2={plot.left} y1={plot.top} y2={plot.bottom} stroke="#cbd5e1" />
+            <line x1={plot.left} x2={plot.right} y1={plot.bottom} y2={plot.bottom} stroke="#cbd5e1" />
+            {items.map((item, index) => {
+              const x = plot.left + index * slotWidth + (slotWidth - barWidth) / 2;
+              let stackedOffset = 0;
+              const visibleSegments = modelNames
+                .map((modelName, modelIndex) => {
+                  const segmentValue = item.byModel[modelName] ?? 0;
+                  const segmentHeight = segmentValue <= 0 ? 0 : Math.max(minSegmentHeight, (segmentValue / chartMax) * (plot.bottom - plot.top));
+                  return {
+                    modelName,
+                    modelIndex,
+                    height: segmentHeight,
+                  };
+                })
+                .filter((segment) => segment.height > 0);
+              const labelStep = Math.ceil(items.length / 8);
+              const showLabel = items.length <= 12 || index === 0 || index === items.length - 1 || (index % labelStep === 0 && index < items.length - 2);
+              return (
+                <g key={`${item.label}-${index}`} onMouseEnter={() => setHoveredIndex(index)} onMouseLeave={() => setHoveredIndex(null)}>
+                  {visibleSegments.map((segment, segmentIndex) => {
+                    const y = plot.bottom - stackedOffset - segment.height;
+                    stackedOffset += segment.height;
+                    const isBottomSegment = segmentIndex === 0;
+                    const isTopSegment = segmentIndex === visibleSegments.length - 1;
+
+                    return (
+                      <path
+                        key={segment.modelName}
+                        className="cursor-pointer transition-opacity"
+                        d={roundedBarSegmentPath(x, y, barWidth, segment.height, barRadius, { top: isTopSegment, bottom: isBottomSegment })}
+                        fill={palette[segment.modelIndex % palette.length]}
+                        opacity={hoveredIndex === null || hoveredIndex === index ? 1 : 0.45}
+                      />
+                    );
+                    })}
+                  <rect className="cursor-pointer" x={x - 8} y={plot.top} width={barWidth + 16} height={plot.bottom - plot.top} fill="transparent" />
+                  {showLabel ? (
+                    <text x={x + barWidth / 2} y={plot.bottom + 28} fill="#64748b" fontSize="14" fontWeight="600" textAnchor="middle">
+                      {item.label}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+            {hovered ? (
+              <foreignObject x={Math.min(plot.left + (hoveredIndex ?? 0) * slotWidth + 18, plot.right - 250)} y="36" width="250" height="190">
+                <div className="rounded-md border border-slate-200 bg-white/95 p-3 text-sm shadow-lg shadow-slate-200">
+                  <div className="truncate text-base font-semibold text-slate-950">{hovered.label}</div>
+                  <div className="mt-1 font-semibold text-slate-700">总计 {formatValue(hovered.total)}</div>
+                  <div className="mt-2 space-y-1.5">
+                    {modelNames.filter((modelName) => (hovered.byModel[modelName] ?? 0) > 0).map((modelName) => (
+                      <div key={modelName} className="flex items-center justify-between gap-2 text-slate-600">
+                        <span className="truncate">{modelName}</span>
+                        <span className="shrink-0 font-medium">{formatValue(hovered.byModel[modelName] ?? 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </foreignObject>
+            ) : null}
+          </svg>
         ) : null}
-      </svg>
-    </div>
+      </div>
+    </section>
   );
 }
 
-function RankBars({ items, maxAmount }: { items: Array<{ name: string; amount: number; tokens: number; count: number }>; maxAmount: number }) {
-  const colors = ["bg-[#1155ff]", "bg-[#14c8e5]", "bg-[#f25be9]"];
-  return (
-    <div className="mt-5 space-y-3">
-      {items.map((item, index) => (
-        <div key={item.name} className="flex items-center gap-3 text-sm">
-          <span className="w-[180px] truncate text-slate-500">{item.name}</span>
-          <div className="h-3 flex-1 bg-slate-50">
-            <div className={`h-full ${colors[index] ?? "bg-slate-300"}`} style={{ width: `${(item.amount / maxAmount) * 100}%` }} />
-          </div>
-          <span className="w-28 text-right font-medium text-slate-700">{formatCurrency(item.amount)}</span>
-        </div>
-      ))}
-    </div>
-  );
+function roundedBarSegmentPath(x: number, y: number, width: number, height: number, radius: number, corners: { top: boolean; bottom: boolean }) {
+  const right = x + width;
+  const bottom = y + height;
+  const topRadius = corners.top ? Math.min(radius, width / 2, height / 2) : 0;
+  const bottomRadius = corners.bottom ? Math.min(radius, width / 2, height / 2) : 0;
+
+  return [
+    `M ${x + topRadius} ${y}`,
+    `H ${right - topRadius}`,
+    corners.top ? `Q ${right} ${y} ${right} ${y + topRadius}` : `L ${right} ${y}`,
+    `V ${bottom - bottomRadius}`,
+    corners.bottom ? `Q ${right} ${bottom} ${right - bottomRadius} ${bottom}` : `L ${right} ${bottom}`,
+    `H ${x + bottomRadius}`,
+    corners.bottom ? `Q ${x} ${bottom} ${x} ${bottom - bottomRadius}` : `L ${x} ${bottom}`,
+    `V ${y + topRadius}`,
+    corners.top ? `Q ${x} ${y} ${x + topRadius} ${y}` : `L ${x} ${y}`,
+    "Z",
+  ].join(" ");
 }
 
 function createDefaultFilters(data: DealerData): ReportFilters {
@@ -412,7 +438,6 @@ function createDefaultFilters(data: DealerData): ReportFilters {
     customStart: "2026-07-01",
     customEnd: "2026-07-03",
     customerName: "全部客户",
-    salesName: "全部销售",
     modelNames: ["全部模型"],
   };
 }
@@ -421,19 +446,22 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
   const existingIds = new Set(data.consumptions.map((record) => record.id));
   const generatedRecords: ConsumptionRecord[] = [];
   const availableModels = data.models.filter((model) => model.status === "可用");
+  const normalizedRecords = data.consumptions.map((record) => normalizeReportRecord(data, record));
   const reportStart = startOfDay(now);
   reportStart.setDate(reportStart.getDate() - 44);
 
   for (const [customerIndex, customer] of data.customers.entries()) {
     const customerCreatedAt = parseLocalDateTime(customer.createdAt);
     const customerApiKeys = data.apiKeys.filter((key) => key.customerName === customer.company && key.status === "已启用");
-    const customerModels = unique([
-      ...customerApiKeys.map((key) => key.modelName),
-      ...availableModels
-        .filter((_, modelIndex) => (modelIndex + customerIndex) % 2 === 0)
-        .slice(0, 2)
-        .map((model) => model.name),
-    ]).filter((modelName) => data.models.some((model) => model.name === modelName));
+    const primaryModels = customerApiKeys.map((key) => key.modelName);
+    const fallbackModels = availableModels
+      .filter((model) => !primaryModels.includes(model.name))
+      .filter((_, modelIndex) => (modelIndex + customerIndex) % 3 !== 1)
+      .slice(0, 2)
+      .map((model) => model.name);
+    const customerModels = unique([...primaryModels, ...fallbackModels])
+      .filter((modelName) => data.models.some((model) => model.name === modelName))
+      .slice(0, 3);
 
     for (let dayIndex = 0; dayIndex < 45; dayIndex += 1) {
       const day = new Date(reportStart);
@@ -443,20 +471,25 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
       }
 
       for (const [modelIndex, modelName] of customerModels.entries()) {
-        const activityScore = stableNumber(`${customer.id}-${modelName}-${dayIndex}`, 100);
-        const frequency = customer.status === "正常" ? 64 : customer.status === "未激活" ? 24 : 42;
-        if (activityScore > frequency) {
+        const isRestDay = customer.status !== "正常" && stableNumber(`${customer.id}-${dayIndex}-rest`, 5) === 0;
+        if (isRestDay) {
           continue;
         }
 
         const model = data.models.find((item) => item.name === modelName);
-        const baseTokens = model?.type === "视频" ? 45_000 : 90_000;
-        const inputTokens = baseTokens + stableNumber(`${customer.id}-${modelName}-input-${dayIndex}`, model?.type === "视频" ? 70_000 : 420_000);
-        const outputTokens = Math.round(inputTokens * (0.42 + stableNumber(`${customer.id}-${modelName}-ratio-${dayIndex}`, 28) / 100));
+        const modelType = model?.type ?? "对话补全";
+        const baseInputTokens = modelType === "视频" ? 1_600_000 : 24_000_000;
+        const customerFactor = customer.status === "正常" ? 1 : customer.status === "未激活" ? 0.24 : 0.58;
+        const modelFactor = modelName.includes("Seedance") ? 0.42 : modelName.includes("Qwen") ? 0.82 : 1;
+        const dayWave = 0.88 + (dayIndex % 7) * 0.035;
+        const noise = stableNumber(`${customer.id}-${modelName}-noise-${dayIndex}`, 16) / 100;
+        const inputTokens = Math.max(180_000, Math.round(baseInputTokens * customerFactor * modelFactor * (dayWave + noise)));
+        const outputRatio = modelType === "视频" ? 0.52 : 0.36 + stableNumber(`${customer.id}-${modelName}-ratio-${dayIndex}`, 12) / 100;
+        const outputTokens = Math.round(inputTokens * outputRatio);
         const totalTokens = inputTokens + outputTokens;
         const inputPrice = model?.inputPrice ?? 6;
         const outputPrice = model?.outputPrice ?? 18;
-        const amount = roundCurrency(((inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice) * 1000);
+        const amount = roundCurrency((inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice);
         const hour = 9 + stableNumber(`${customer.id}-${modelName}-hour-${dayIndex}`, 10);
         const minute = stableNumber(`${customer.id}-${modelName}-minute-${dayIndex}`, 60);
         const calledAt = `${formatDate(day)} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
@@ -487,12 +520,29 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
     }
   }
 
-  return [...data.consumptions, ...generatedRecords];
+  return [...normalizedRecords, ...generatedRecords];
+}
+
+function normalizeReportRecord(data: DealerData, record: ConsumptionRecord): ConsumptionRecord {
+  const model = data.models.find((item) => item.name === record.modelName);
+  const inputScale = record.inputTokens > 500_000_000 ? 1000 : 1;
+  const outputScale = record.outputTokens > 500_000_000 ? 1000 : 1;
+  const inputTokens = Math.round(record.inputTokens / inputScale);
+  const outputTokens = Math.round(record.outputTokens / outputScale);
+  const totalTokens = inputTokens + outputTokens;
+  const amount = roundCurrency((inputTokens / 1_000_000) * (model?.inputPrice ?? 6) + (outputTokens / 1_000_000) * (model?.outputPrice ?? 18));
+
+  return {
+    ...record,
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    amount,
+  };
 }
 
 function filterConsumptionRecords(data: DealerData, records: ConsumptionRecord[], filters: ReportFilters) {
   const { start, end } = getDateRange(filters);
-  const salesByCustomer = new Map(data.customers.map((customer) => [customer.company, customer.sales]));
 
   return records.filter((record) => {
     const calledAt = parseLocalDateTime(record.calledAt);
@@ -500,34 +550,21 @@ function filterConsumptionRecords(data: DealerData, records: ConsumptionRecord[]
       && calledAt < end
       && record.status === "成功"
       && (filters.customerName === "全部客户" || record.customerName === filters.customerName)
-      && (filters.salesName === "全部销售" || salesByCustomer.get(record.customerName) === filters.salesName)
       && (filters.modelNames.includes("全部模型") || filters.modelNames.includes(record.modelName));
   });
 }
 
-function buildReportMetrics(data: DealerData, records: ConsumptionRecord[], filters: ReportFilters) {
+function buildReportMetrics(records: ConsumptionRecord[]) {
   const customerNames = new Set(records.map((record) => record.customerName));
   const tokens = records.reduce((sum, record) => sum + record.inputTokens + record.outputTokens, 0);
   const amount = records.reduce((sum, record) => sum + record.amount, 0);
-  const cost = records.reduce((sum, record) => sum + calculateConsumptionCost(record, data), 0);
-  const { end } = getDateRange(filters);
-  const scopedCustomers = data.customers.filter((customer) =>
-    (filters.customerName === "全部客户" || customer.company === filters.customerName)
-    && (filters.salesName === "全部销售" || customer.sales === filters.salesName)
-    && parseLocalDateTime(customer.createdAt) < end
-    && (filters.modelNames.includes("全部模型") || customerNames.has(customer.company)),
-  );
+  const requestCount = records.reduce((sum, record) => sum + estimateRequestCount(record), 0);
 
   return {
-    customerCount: scopedCustomers.length,
-    activeCustomerCount: customerNames.size,
+    customerCount: customerNames.size,
     tokens,
     amount,
-    cost,
-    profit: amount - cost,
-    keyCount: data.apiKeys.filter((key) => scopedCustomers.some((customer) => customer.company === key.customerName)).length,
-    requestCount: records.length,
-    averageCustomerSpend: scopedCustomers.length === 0 ? 0 : amount / scopedCustomers.length,
+    requestCount,
   };
 }
 
@@ -540,7 +577,6 @@ function buildDetailRows(data: DealerData, records: ConsumptionRecord[]): Detail
     const customer = customers.get(record.customerName);
     const current = grouped.get(record.customerName) ?? {
       customerName: record.customerName,
-      salesName: customer?.sales ?? "-",
       customerStatus: customer?.status ?? "-",
       tokens: 0,
       amount: 0,
@@ -548,10 +584,12 @@ function buildDetailRows(data: DealerData, records: ConsumptionRecord[]): Detail
       averageDuration: 0,
       lastCalledAt: record.calledAt,
     };
+    const requestCount = estimateRequestCount(record);
+    const duration = logsByCustomer.get(`${record.customerName}-${record.modelName}`) ?? estimateDuration(record);
     current.tokens += record.inputTokens + record.outputTokens;
     current.amount += record.amount;
-    current.count += 1;
-    current.averageDuration += logsByCustomer.get(`${record.customerName}-${record.modelName}`) ?? estimateDuration(record);
+    current.count += requestCount;
+    current.averageDuration += duration * requestCount;
     current.lastCalledAt = parseLocalDateTime(record.calledAt) > parseLocalDateTime(current.lastCalledAt) ? record.calledAt : current.lastCalledAt;
     grouped.set(record.customerName, current);
   }
@@ -559,41 +597,39 @@ function buildDetailRows(data: DealerData, records: ConsumptionRecord[]): Detail
   return [...grouped.values()].map((row) => ({ ...row, averageDuration: row.count === 0 ? 0 : Math.round(row.averageDuration / row.count) }));
 }
 
-function buildReportTrend(records: ConsumptionRecord[], metric: TrendMetric, filters: ReportFilters) {
+function buildTimeSeries(records: ConsumptionRecord[], filters: ReportFilters) {
   const { start, end } = getDateRange(filters);
   const dayCount = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
   const buckets = Array.from({ length: dayCount }, (_, index) => {
-    const bucketStart = new Date(start);
-    bucketStart.setDate(start.getDate() + index);
-    const bucketEnd = new Date(bucketStart);
-    bucketEnd.setDate(bucketStart.getDate() + 1);
-    return { label: `${String(bucketStart.getMonth() + 1).padStart(2, "0")}-${String(bucketStart.getDate()).padStart(2, "0")}`, start: bucketStart, end: bucketEnd, value: 0 };
+    const date = addDays(start, index);
+    return {
+      label: `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+      amount: 0,
+      tokens: 0,
+      count: 0,
+      amountByModel: {} as Record<string, number>,
+      tokensByModel: {} as Record<string, number>,
+      countByModel: {} as Record<string, number>,
+      start: date,
+      end: addDays(date, 1),
+    };
   });
 
   for (const record of records) {
     const calledAt = parseLocalDateTime(record.calledAt);
     const bucket = buckets.find((item) => calledAt >= item.start && calledAt < item.end);
     if (!bucket) continue;
-    bucket.value += metric === "amount" ? record.amount : metric === "tokens" ? record.inputTokens + record.outputTokens : 1;
+    const tokens = record.inputTokens + record.outputTokens;
+    const requestCount = estimateRequestCount(record);
+    bucket.amount += record.amount;
+    bucket.tokens += tokens;
+    bucket.count += requestCount;
+    bucket.amountByModel[record.modelName] = (bucket.amountByModel[record.modelName] ?? 0) + record.amount;
+    bucket.tokensByModel[record.modelName] = (bucket.tokensByModel[record.modelName] ?? 0) + tokens;
+    bucket.countByModel[record.modelName] = (bucket.countByModel[record.modelName] ?? 0) + requestCount;
   }
 
-  return buckets.map(({ label, value }) => ({ label, value }));
-}
-
-function buildReportRanking(data: DealerData, records: ConsumptionRecord[], metric: RankMetric) {
-  const salesByCustomer = new Map(data.customers.map((customer) => [customer.company, customer.sales]));
-  const grouped = new Map<string, { name: string; amount: number; tokens: number; count: number }>();
-
-  for (const record of records) {
-    const name = metric === "model" ? record.modelName : metric === "sales" ? salesByCustomer.get(record.customerName) ?? "未分配" : record.customerName;
-    const current = grouped.get(name) ?? { name, amount: 0, tokens: 0, count: 0 };
-    current.amount += record.amount;
-    current.tokens += record.inputTokens + record.outputTokens;
-    current.count += 1;
-    grouped.set(name, current);
-  }
-
-  return [...grouped.values()].sort((left, right) => right.amount - left.amount).slice(0, 10);
+  return buckets.map(({ label, amount, tokens, count, amountByModel, tokensByModel, countByModel }) => ({ label, amount, tokens, count, amountByModel, tokensByModel, countByModel }));
 }
 
 function getDateRange(filters: ReportFilters) {
@@ -601,22 +637,12 @@ function getDateRange(filters: ReportFilters) {
   const end = startOfDay(now);
   end.setDate(end.getDate() + 1);
 
-  if (filters.range === "today") return { start, end };
   if (filters.range === "last7") {
     start.setDate(start.getDate() - 6);
     return { start, end };
   }
   if (filters.range === "last30") {
     start.setDate(start.getDate() - 29);
-    return { start, end };
-  }
-  if (filters.range === "month") {
-    start.setDate(1);
-    return { start, end };
-  }
-  if (filters.range === "lastMonth") {
-    start.setMonth(start.getMonth() - 1, 1);
-    end.setDate(1);
     return { start, end };
   }
 
@@ -626,14 +652,67 @@ function getDateRange(filters: ReportFilters) {
   };
 }
 
+function formatCompactValue(value: number, tone: "blue" | "cyan" | "pink") {
+  if (tone === "pink") {
+    return `${Math.round(value)}`;
+  }
+
+  if (value >= 1_000_000) {
+    return `${Number((value / 1_000_000).toFixed(1))}M`;
+  }
+
+  if (value >= 10_000) {
+    return `${Number((value / 10_000).toFixed(1))}万`;
+  }
+
+  if (value >= 1_000) {
+    return `${Number((value / 1_000).toFixed(1))}k`;
+  }
+
+  return `${Math.round(value)}`;
+}
+
+function formatTokenOverview(value: number) {
+  if (value >= 100_000_000) {
+    return `${trimMetricNumber(value / 100_000_000, 2)}亿`;
+  }
+
+  if (value >= 10_000) {
+    return `${trimMetricNumber(value / 10_000, 1)}万`;
+  }
+
+  return formatNumber(value);
+}
+
+function trimMetricNumber(value: number, digits: number) {
+  return value.toLocaleString("zh-CN", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: 0,
+  });
+}
+
+function estimateRequestCount(record: ConsumptionRecord) {
+  const totalTokens = record.inputTokens + record.outputTokens;
+  const averageTokensPerRequest = record.modelName.includes("Seedance") ? 900_000 : 180_000;
+  return Math.max(1, Math.round(totalTokens / averageTokensPerRequest));
+}
+
+function getStackPalette(tone: "blue" | "cyan" | "pink") {
+  if (tone === "cyan") {
+    return ["#14c8e5", "#39d98a", "#7c8cff", "#f6c85f", "#ff8a65"];
+  }
+
+  if (tone === "pink") {
+    return ["#f25be9", "#ff8a65", "#7c8cff", "#14c8e5", "#39d98a"];
+  }
+
+  return ["#1155ff", "#7c8cff", "#14c8e5", "#39d98a", "#f6c85f"];
+}
+
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + days);
   return nextDate;
-}
-
-function pointX(index: number, total: number, plot: { left: number; right: number }) {
-  return total <= 1 ? plot.left : plot.left + (index / (total - 1)) * (plot.right - plot.left);
 }
 
 function startOfDay(date: Date) {
@@ -648,12 +727,6 @@ function parseLocalDateTime(value: string) {
 
 function formatDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function formatTrendValue(value: number, metric: TrendMetric) {
-  if (metric === "amount") return formatCurrency(value);
-  if (metric === "tokens") return `${formatNumber(value)} Tokens`;
-  return `${formatNumber(value)} 次`;
 }
 
 function stableNumber(seed: string, max: number) {

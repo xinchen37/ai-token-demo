@@ -49,6 +49,11 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const [consumptionStatusFilter, setConsumptionStatusFilter] = React.useState<string[]>([]);
   const [calledStart, setCalledStart] = React.useState("");
   const [calledEnd, setCalledEnd] = React.useState("");
+  const [contractNoDraft, setContractNoDraft] = React.useState("");
+  const [contractNoFilter, setContractNoFilter] = React.useState("");
+  const [contractCustomerFilter, setContractCustomerFilter] = React.useState("");
+  const [contractOrderStart, setContractOrderStart] = React.useState("");
+  const [contractOrderEnd, setContractOrderEnd] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
   const [editingRecord, setEditingRecord] = React.useState<BaseRecord | null>(null);
@@ -61,13 +66,14 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const isModelPage = config.entity === "models";
   const isConsumptionPage = config.entity === "consumptions" && config.title === "消费记录";
   const isUsageLogPage = config.entity === "usageLogs";
+  const isContractsPage = config.entity === "contracts";
   const supportsCardView = isModelPage || isProductPage;
-  const supportsDetailView = isModelPage || isProductPage || isUsageLogPage;
+  const supportsDetailView = isModelPage || isProductPage || isUsageLogPage || isContractsPage;
   const isBillsPage = config.entity === "bills";
-  const showActions = !config.readOnly;
+  const showActions = !config.readOnly && !isContractsPage;
   const showActionColumn = showActions || supportsDetailView;
-  const canCreate = showActions && config.entity !== "models";
-  const canDelete = showActions && config.entity !== "models" && config.entity !== "products";
+  const canCreate = !config.readOnly && config.entity !== "models";
+  const canDelete = showActions && config.entity !== "models" && config.entity !== "products" && !isContractsPage;
   const resolvedFields = React.useMemo(() => resolveFields(config.fields, data), [config.fields, data]);
   const emptyDraft = React.useMemo(() => buildEmptyDraft(resolvedFields), [resolvedFields]);
   const [draft, setDraft] = React.useState<Record<string, string | number>>(emptyDraft);
@@ -87,7 +93,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
 
   const filteredRecords = React.useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
-    const keywordMatchedRecords = normalized
+    const keywordMatchedRecords = normalized && !isContractsPage
       ? records.filter((record) =>
           Object.values(record).some((value) => String(value).toLowerCase().includes(normalized)),
         )
@@ -115,15 +121,23 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
       ? consumptionFilteredRecords.filter((record) => matchesDateRange(record, "requestedAt", calledStart, calledEnd))
       : consumptionFilteredRecords;
 
+    const contractFilteredRecords = isContractsPage
+      ? usageLogFilteredRecords.filter((record) =>
+          (!contractNoFilter || String(getRecordValue(record, "contractNo") ?? "").toLowerCase().includes(contractNoFilter.trim().toLowerCase()))
+          && (!contractCustomerFilter || String(getRecordValue(record, "customerName") ?? "") === contractCustomerFilter)
+          && matchesDateRange(record, "orderedAt", contractOrderStart, contractOrderEnd),
+        )
+      : usageLogFilteredRecords;
+
     if (!isBillsPage || (!periodStart && !periodEnd)) {
-      return usageLogFilteredRecords;
+      return contractFilteredRecords;
     }
 
-    return usageLogFilteredRecords.filter((record) => {
+    return contractFilteredRecords.filter((record) => {
       const period = String(getRecordValue(record, "period") ?? "");
       return (!periodStart || period >= periodStart) && (!periodEnd || period <= periodEnd);
     });
-  }, [apiKeyFilter, billingFilter, calledEnd, calledStart, consumptionStatusFilter, customerFilter, isBillsPage, isConsumptionPage, isModelPage, isUsageLogPage, keyword, modelFilter, periodEnd, periodStart, providerFilter, records, typeFilter]);
+  }, [apiKeyFilter, billingFilter, calledEnd, calledStart, consumptionStatusFilter, contractCustomerFilter, contractNoFilter, contractOrderEnd, contractOrderStart, customerFilter, isBillsPage, isConsumptionPage, isContractsPage, isModelPage, isUsageLogPage, keyword, modelFilter, periodEnd, periodStart, providerFilter, records, typeFilter]);
 
   React.useLayoutEffect(() => {
     const container = scrollContainerRef.current;
@@ -184,6 +198,11 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
     setConsumptionStatusFilter([]);
     setCalledStart("");
     setCalledEnd("");
+    setContractNoDraft("");
+    setContractNoFilter("");
+    setContractCustomerFilter("");
+    setContractOrderStart("");
+    setContractOrderEnd("");
     setPeriodStart("");
     setPeriodEnd("");
   }
@@ -222,18 +241,35 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input
                 className="pl-9 sm:w-72"
-                value={keywordDraft}
-                onBlur={() => setKeyword(keywordDraft)}
-                onChange={(event) => setKeywordDraft(event.target.value)}
+                value={isContractsPage ? contractNoDraft : keywordDraft}
+                onBlur={() => {
+                  if (!isContractsPage) setKeyword(keywordDraft);
+                }}
+                onChange={(event) => isContractsPage ? setContractNoDraft(event.target.value) : setKeywordDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    setKeyword(keywordDraft);
+                    if (isContractsPage) {
+                      setContractNoFilter(contractNoDraft);
+                    } else {
+                      setKeyword(keywordDraft);
+                    }
                     event.currentTarget.blur();
                   }
                 }}
-                placeholder={config.searchPlaceholder}
+                placeholder={isContractsPage ? "搜索合同号" : config.searchPlaceholder}
               />
             </div>
+            {isContractsPage ? (
+              <>
+                <FilterSelectField className="h-9 rounded-md sm:w-56" ariaLabel="客户名称" value={contractCustomerFilter} onChange={setContractCustomerFilter} options={["", ...unique(records.map((record) => String(getRecordValue(record, "customerName") ?? "")).filter(Boolean))]} placeholder="全部客户" />
+                <DatePickerField className="h-9 rounded-md sm:w-44" mode="datetime" placeholder="下单开始时间" value={contractOrderStart} onChange={setContractOrderStart} />
+                <DatePickerField className="h-9 rounded-md sm:w-44" mode="datetime" placeholder="下单结束时间" value={contractOrderEnd} onChange={setContractOrderEnd} />
+                <Button className="whitespace-nowrap" variant="primary" onClick={() => setContractNoFilter(contractNoDraft)}>
+                  <Search className="size-4" />
+                  查询
+                </Button>
+              </>
+            ) : null}
             {isModelPage ? (
               <>
                 <FilterMultiSelect label="供应商" options={unique(records.map((record) => String(getRecordValue(record, "provider") ?? "")).filter(Boolean))} value={providerFilter} onChange={setProviderFilter} />
@@ -316,7 +352,15 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                         {field.label}
                         {field.required ? <span className="ml-1 text-rose-500">*</span> : null}
                       </span>
-                      <FieldInput field={field} value={draft[String(field.key)] ?? ""} onChange={(value) => setDraft((current) => ({ ...current, [String(field.key)]: value }))} />
+                      <FieldInput
+                        disabled={isContractsPage && editingRecord ? String(getRecordValue(editingRecord, "status") ?? "") === "启用" && field.key !== "status" : false}
+                        field={field}
+                        value={draft[String(field.key)] ?? ""}
+                        onChange={(value) => setDraft((current) => ({ ...current, [String(field.key)]: value }))}
+                      />
+                      {isContractsPage && field.key === "expiresAt" ? (
+                        <ExpiryShortcutButtons value={String(draft.expiresAt ?? "")} onChange={(value) => setDraft((current) => ({ ...current, expiresAt: value }))} />
+                      ) : null}
                     </label>
                   ))}
                 </div>
@@ -351,6 +395,13 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
 
       {isUsageLogPage && detailRecord ? (
         <UsageLogDetailDialog record={detailRecord} onClose={() => setDetailRecord(null)} />
+      ) : null}
+
+      {isContractsPage && detailRecord ? (
+        <ContractDetailDialog record={detailRecord} onClose={() => setDetailRecord(null)} onEdit={(record) => {
+          setDetailRecord(null);
+          openEditForm(record);
+        }} />
       ) : null}
 
       {isModelPage && viewMode === "cards" ? (
@@ -819,6 +870,28 @@ function UsageLogDetailDialog({ record, onClose }: { record: BaseRecord; onClose
   );
 }
 
+function ContractDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; onClose: () => void; onEdit: (record: BaseRecord) => void }) {
+  const contractNo = String(getRecordValue(record, "contractNo") ?? "-");
+  const fields = [
+    { label: "订单号", value: contractNo },
+    { label: "客户名称", value: getRecordValue(record, "customerName") },
+    { label: "产品名称", value: getRecordValue(record, "productName") },
+    { label: "产品信息", value: getRecordValue(record, "productInfo") },
+    { label: "每日限额", value: formatUnlimited(getRecordValue(record, "dailyLimit")) },
+    { label: "过期时间", value: formatUnlimited(getRecordValue(record, "expiresAt")) },
+    { label: "状态", value: getRecordValue(record, "status") },
+    { label: "创建时间", value: record.createdAt },
+  ];
+
+  return (
+    <DetailDialogShell title="合同详情" subtitle={contractNo} onClose={onClose} onEdit={() => onEdit(record)} editLabel="编辑状态">
+      {fields.map((field) => (
+        <DetailField key={field.label} label={field.label} value={String(field.value ?? "-")} />
+      ))}
+    </DetailDialogShell>
+  );
+}
+
 function JsonCodeBlock({ title, value }: { title: string; value: unknown }) {
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-slate-50">
@@ -830,7 +903,7 @@ function JsonCodeBlock({ title, value }: { title: string; value: unknown }) {
   );
 }
 
-function DetailDialogShell({ title, subtitle, children, onClose, onEdit }: { title: string; subtitle: string; children: React.ReactNode; onClose: () => void; onEdit: () => void }) {
+function DetailDialogShell({ title, subtitle, children, onClose, onEdit, editLabel = "编辑" }: { title: string; subtitle: string; children: React.ReactNode; onClose: () => void; onEdit: () => void; editLabel?: string }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm" role="presentation" onMouseDown={onClose}>
       <section
@@ -862,7 +935,7 @@ function DetailDialogShell({ title, subtitle, children, onClose, onEdit }: { tit
           </Button>
           <Button className="h-10 px-6" type="button" variant="primary" onClick={onEdit}>
             <Edit3 className="size-4" />
-            编辑
+            {editLabel}
           </Button>
         </div>
       </section>
@@ -921,15 +994,56 @@ function getProductCardStats(record: BaseRecord, packageMode: string, tokenLimit
   ];
 }
 
-function FieldInput({ field, value, onChange }: { field: FieldConfig; value: string | number; onChange: (value: string | number) => void }) {
+function FieldInput({ field, value, onChange, disabled = false }: { field: FieldConfig; value: string | number; onChange: (value: string | number) => void; disabled?: boolean }) {
   if (field.key === "abilities") {
     return <TagInput value={String(value)} onChange={onChange} placeholder="输入标签名称" />;
+  }
+
+  if (field.kind === "searchableSelect") {
+    const listId = `field-options-${field.key}`;
+    return (
+      <>
+        <Input
+          className="h-11 rounded-lg bg-slate-50/70 px-4 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          disabled={disabled}
+          list={listId}
+          placeholder={field.placeholder ?? "可输入关键词检索"}
+          value={String(value)}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.required}
+        />
+        <datalist id={listId}>
+          {(field.options ?? []).map((option) => <option key={option} value={option} />)}
+        </datalist>
+      </>
+    );
+  }
+
+  if (field.kind === "radio") {
+    return (
+      <div className="flex h-11 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3">
+        {(field.options ?? []).map((option) => (
+          <label key={option} className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              checked={String(value) === option}
+              className="size-4 accent-[#1155ff]"
+              disabled={disabled}
+              name={field.key}
+              onChange={() => onChange(option)}
+              type="radio"
+            />
+            {option}
+          </label>
+        ))}
+      </div>
+    );
   }
 
   if (field.kind === "select") {
     return (
       <Select
-        className="h-11 rounded-lg bg-slate-50/70 pl-4 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100"
+        className="h-11 rounded-lg bg-slate-50/70 pl-4 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        disabled={disabled}
         value={String(value)}
         onChange={(event) => onChange(event.target.value)}
         required={field.required}
@@ -954,7 +1068,8 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
   if (field.kind === "textarea") {
     return (
       <textarea
-        className="min-h-28 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#1155ff] focus:bg-white focus:ring-2 focus:ring-blue-100"
+        className="min-h-28 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#1155ff] focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        disabled={disabled}
         value={String(value)}
         onChange={(event) => onChange(event.target.value)}
         placeholder={field.placeholder}
@@ -966,6 +1081,7 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
   if (field.kind === "datetime" || field.kind === "month") {
     return (
       <DatePickerField
+        disabled={disabled}
         mode={field.kind}
         placeholder={field.placeholder ?? field.label}
         value={String(value)}
@@ -976,7 +1092,8 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
 
   return (
     <Input
-      className="h-11 rounded-lg bg-slate-50/70 px-4 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100"
+      className="h-11 rounded-lg bg-slate-50/70 px-4 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+      disabled={disabled}
       type={field.kind === "number" ? "number" : "text"}
       value={String(value)}
       onChange={(event) => onChange(field.kind === "number" ? Number(event.target.value) : event.target.value)}
@@ -1288,18 +1405,71 @@ function MultiSelectInput({ field, value, onChange }: { field: FieldConfig; valu
   );
 }
 
+function FilterSelectField({ ariaLabel, className, value, options, placeholder, onChange }: { ariaLabel: string; className?: string; value: string; options: string[]; placeholder: string; onChange: (value: string) => void }) {
+  return (
+    <Select className={["bg-slate-50/70 pl-3 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100", className].filter(Boolean).join(" ")} value={value} onChange={(event) => onChange(event.target.value)} aria-label={ariaLabel}>
+      {options.map((option) => (
+        <option key={option || placeholder} value={option}>
+          {option || placeholder}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
+function ExpiryShortcutButtons({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const shortcuts = [
+    { label: "永不过期", value: "" },
+    { label: "一年", value: "year" },
+    { label: "一个月", value: "month" },
+    { label: "一天", value: "day" },
+    { label: "一小时", value: "hour" },
+  ];
+
+  function applyShortcut(shortcut: string) {
+    if (!shortcut) {
+      onChange("");
+      return;
+    }
+
+    const date = new Date();
+    if (shortcut === "year") date.setFullYear(date.getFullYear() + 1);
+    if (shortcut === "month") date.setMonth(date.getMonth() + 1);
+    if (shortcut === "day") date.setDate(date.getDate() + 1);
+    if (shortcut === "hour") date.setHours(date.getHours() + 1);
+    onChange(formatDateTimeWithSeconds(date));
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {shortcuts.map((shortcut) => (
+        <button
+          key={shortcut.label}
+          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${(!value && !shortcut.value) ? "bg-blue-50 text-[#1155ff]" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+          onClick={() => applyShortcut(shortcut.value)}
+          type="button"
+        >
+          {shortcut.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function DatePickerField({
   mode,
   placeholder,
   value,
   onChange,
   className = "",
+  disabled = false,
 }: {
   mode: "datetime" | "month";
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const inputType = mode === "datetime" ? "datetime-local" : "month";
   const inputValue = mode === "datetime" ? toDateTimeInputValue(value) : value;
@@ -1315,10 +1485,12 @@ function DatePickerField({
       {!inputValue ? <span className="pointer-events-none absolute left-10 text-slate-400">{placeholder}</span> : null}
       <input
         aria-label={placeholder}
+        disabled={disabled}
         className={[
-          "h-full w-full cursor-pointer bg-transparent pl-10 pr-4 outline-none [color-scheme:light]",
+          "h-full w-full cursor-pointer bg-transparent pl-10 pr-4 outline-none disabled:cursor-not-allowed [color-scheme:light]",
           inputValue ? "text-slate-700" : "text-transparent focus:text-transparent",
         ].join(" ")}
+        step={mode === "datetime" ? 1 : undefined}
         type={inputType}
         value={inputValue}
         onChange={(event) => handleChange(event.target.value)}
@@ -1329,11 +1501,24 @@ function DatePickerField({
 
 function toDateTimeInputValue(value: string) {
   if (!value) return "";
-  return value.includes("T") ? value.slice(0, 16) : value.replace(" ", "T").slice(0, 16);
+  return value.includes("T") ? value.slice(0, 19) : value.replace(" ", "T").slice(0, 19);
 }
 
 function fromDateTimeInputValue(value: string) {
   return value.replace("T", " ");
+}
+
+function formatDateTimeWithSeconds(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-") + ` ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+}
+
+function formatUnlimited(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text || "不限制";
 }
 
 function buildEmptyDraft(fields: FieldConfig[]): Record<string, string | number> {
