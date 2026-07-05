@@ -43,6 +43,12 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const [providerFilter, setProviderFilter] = React.useState<string[]>([]);
   const [typeFilter, setTypeFilter] = React.useState<string[]>([]);
   const [billingFilter, setBillingFilter] = React.useState<string[]>([]);
+  const [customerFilter, setCustomerFilter] = React.useState<string[]>([]);
+  const [apiKeyFilter, setApiKeyFilter] = React.useState<string[]>([]);
+  const [modelFilter, setModelFilter] = React.useState<string[]>([]);
+  const [consumptionStatusFilter, setConsumptionStatusFilter] = React.useState<string[]>([]);
+  const [calledStart, setCalledStart] = React.useState("");
+  const [calledEnd, setCalledEnd] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
   const [editingRecord, setEditingRecord] = React.useState<BaseRecord | null>(null);
@@ -53,10 +59,13 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const [hasContentOnRight, setHasContentOnRight] = React.useState(false);
   const isProductPage = config.entity === "products";
   const isModelPage = config.entity === "models";
+  const isConsumptionPage = config.entity === "consumptions" && config.title === "消费记录";
+  const isUsageLogPage = config.entity === "usageLogs";
   const supportsCardView = isModelPage || isProductPage;
-  const supportsDetailView = isModelPage || isProductPage;
+  const supportsDetailView = isModelPage || isProductPage || isUsageLogPage;
   const isBillsPage = config.entity === "bills";
   const showActions = !config.readOnly;
+  const showActionColumn = showActions || supportsDetailView;
   const canCreate = showActions && config.entity !== "models";
   const canDelete = showActions && config.entity !== "models" && config.entity !== "products";
   const resolvedFields = React.useMemo(() => resolveFields(config.fields, data), [config.fields, data]);
@@ -92,15 +101,29 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
         )
       : keywordMatchedRecords;
 
+    const consumptionFilteredRecords = isConsumptionPage
+      ? modelFilteredRecords.filter((record) =>
+          matchesFilter(record, "customerName", customerFilter)
+          && matchesFilter(record, "keyName", apiKeyFilter)
+          && matchesFilter(record, "modelName", modelFilter)
+          && matchesFilter(record, "status", consumptionStatusFilter)
+          && matchesDateRange(record, "calledAt", calledStart, calledEnd),
+        )
+      : modelFilteredRecords;
+
+    const usageLogFilteredRecords = isUsageLogPage
+      ? consumptionFilteredRecords.filter((record) => matchesDateRange(record, "requestedAt", calledStart, calledEnd))
+      : consumptionFilteredRecords;
+
     if (!isBillsPage || (!periodStart && !periodEnd)) {
-      return modelFilteredRecords;
+      return usageLogFilteredRecords;
     }
 
-    return modelFilteredRecords.filter((record) => {
+    return usageLogFilteredRecords.filter((record) => {
       const period = String(getRecordValue(record, "period") ?? "");
       return (!periodStart || period >= periodStart) && (!periodEnd || period <= periodEnd);
     });
-  }, [billingFilter, isBillsPage, isModelPage, keyword, periodEnd, periodStart, providerFilter, records, typeFilter]);
+  }, [apiKeyFilter, billingFilter, calledEnd, calledStart, consumptionStatusFilter, customerFilter, isBillsPage, isConsumptionPage, isModelPage, isUsageLogPage, keyword, modelFilter, periodEnd, periodStart, providerFilter, records, typeFilter]);
 
   React.useLayoutEffect(() => {
     const container = scrollContainerRef.current;
@@ -155,6 +178,12 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
     setProviderFilter([]);
     setTypeFilter([]);
     setBillingFilter([]);
+    setCustomerFilter([]);
+    setApiKeyFilter([]);
+    setModelFilter([]);
+    setConsumptionStatusFilter([]);
+    setCalledStart("");
+    setCalledEnd("");
     setPeriodStart("");
     setPeriodEnd("");
   }
@@ -218,7 +247,23 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                 <DatePickerField className="h-9 rounded-md sm:w-40" mode="month" placeholder="结束账期" value={periodEnd} onChange={setPeriodEnd} />
               </>
             ) : null}
-            {isModelPage ? (
+            {isConsumptionPage ? (
+              <>
+                <FilterMultiSelect label="客户企业名" options={unique(records.map((record) => String(getRecordValue(record, "customerName") ?? "")).filter(Boolean))} value={customerFilter} onChange={setCustomerFilter} />
+                <FilterMultiSelect label="API Key" options={unique(records.map((record) => String(getRecordValue(record, "keyName") ?? "")).filter(Boolean))} value={apiKeyFilter} onChange={setApiKeyFilter} />
+                <FilterMultiSelect label="调用模型" options={unique(records.map((record) => String(getRecordValue(record, "modelName") ?? "")).filter(Boolean))} value={modelFilter} onChange={setModelFilter} />
+                <DatePickerField className="h-9 rounded-md sm:w-44" mode="datetime" placeholder="开始时间" value={calledStart} onChange={setCalledStart} />
+                <DatePickerField className="h-9 rounded-md sm:w-44" mode="datetime" placeholder="结束时间" value={calledEnd} onChange={setCalledEnd} />
+                <FilterMultiSelect label="状态" options={["成功", "失败"]} value={consumptionStatusFilter} onChange={setConsumptionStatusFilter} />
+              </>
+            ) : null}
+            {isUsageLogPage ? (
+              <>
+                <DatePickerField className="h-9 rounded-md sm:w-44" mode="datetime" placeholder="开始时间" value={calledStart} onChange={setCalledStart} />
+                <DatePickerField className="h-9 rounded-md sm:w-44" mode="datetime" placeholder="结束时间" value={calledEnd} onChange={setCalledEnd} />
+              </>
+            ) : null}
+            {isModelPage || isConsumptionPage || isUsageLogPage ? (
               <Button className="whitespace-nowrap" variant="secondary" onClick={exportRecords}>
                 <Download className="size-4" />
                 导出
@@ -304,6 +349,10 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
         }} />
       ) : null}
 
+      {isUsageLogPage && detailRecord ? (
+        <UsageLogDetailDialog record={detailRecord} onClose={() => setDetailRecord(null)} />
+      ) : null}
+
       {isModelPage && viewMode === "cards" ? (
         <ModelCardGrid records={filteredRecords} onDetail={openDetail} onEdit={openEditForm} />
       ) : isProductPage && viewMode === "cards" ? (
@@ -323,7 +372,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                     {column.label}
                   </th>
                 ))}
-                {showActions ? (
+                {showActionColumn ? (
                   <th
                     className={[
                       "sticky right-0 top-0 h-12 min-w-[190px] whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 text-right font-medium",
@@ -345,7 +394,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td className="h-24 px-4 text-center text-slate-500" colSpan={tableColumns.length + (showActions ? 1 : 0)}>
+                  <td className="h-24 px-4 text-center text-slate-500" colSpan={tableColumns.length + (showActionColumn ? 1 : 0)}>
                     暂无匹配数据
                   </td>
                 </tr>
@@ -362,7 +411,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                       ) : column.format ? column.format(getRecordValue(record, column.key), record) : formatCell(getRecordValue(record, column.key))}
                     </td>
                   ))}
-                  {showActions ? (
+                  {showActionColumn ? (
                     <td
                       className={[
                         "sticky right-0 whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3",
@@ -383,10 +432,12 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                             详情
                           </Button>
                         ) : null}
-                        <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => openEditForm(record)}>
-                          <Edit3 className="size-4" />
-                          编辑
-                        </Button>
+                        {showActions ? (
+                          <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => openEditForm(record)}>
+                            <Edit3 className="size-4" />
+                            编辑
+                          </Button>
+                        ) : null}
                         {canDelete ? (
                           <Button className="px-2" variant="danger" onClick={() => onDelete(record.id)}>
                             <Trash2 className="size-4" />
@@ -708,6 +759,74 @@ function ProductDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; 
         <DetailField key={field.label} label={field.label} value={field.value} />
       ))}
     </DetailDialogShell>
+  );
+}
+
+function UsageLogDetailDialog({ record, onClose }: { record: BaseRecord; onClose: () => void }) {
+  const taskId = String(getRecordValue(record, "taskId") ?? "-");
+  const requestPayload = getUsageLogPayload(record, "request");
+  const responsePayload = getUsageLogPayload(record, "response");
+  const fields = [
+    { label: "任务ID", value: taskId },
+    { label: "请求时间", value: getRecordValue(record, "requestedAt") },
+    { label: "结束时间", value: getRecordValue(record, "finishedAt") },
+    { label: "总耗时（ms）", value: getRecordValue(record, "durationMs") },
+    { label: "客户名称", value: getRecordValue(record, "customerName") },
+    { label: "模型", value: getRecordValue(record, "modelName") },
+    { label: "状态码", value: getRecordValue(record, "statusCode") },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm" role="presentation" onMouseDown={onClose}>
+      <section
+        aria-modal="true"
+        className="max-h-[calc(100vh-64px)] w-full max-w-6xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-6 border-b border-slate-100 px-7 py-6">
+          <div>
+            <h3 className="text-xl font-semibold text-slate-950">日志详情</h3>
+            <p className="mt-2 text-sm text-slate-500">{taskId}</p>
+          </div>
+          <button
+            aria-label="关闭弹窗"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-7 py-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            {fields.map((field) => (
+              <DetailField key={field.label} label={field.label} value={String(field.value ?? "-")} />
+            ))}
+          </div>
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <JsonCodeBlock title="请求内容" value={requestPayload} />
+            <JsonCodeBlock title="响应内容" value={responsePayload} />
+          </div>
+        </div>
+        <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-7 py-5">
+          <Button className="h-10 px-5" type="button" variant="secondary" onClick={onClose}>
+            关闭
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function JsonCodeBlock({ title, value }: { title: string; value: unknown }) {
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+      <div className="border-b border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">{title}</div>
+      <pre className="max-h-[420px] overflow-auto p-4 text-xs leading-6 text-slate-700">
+        <code>{formatJsonPayload(value)}</code>
+      </pre>
+    </section>
   );
 }
 
@@ -1333,6 +1452,95 @@ function matchesFilter(record: BaseRecord, key: string, values: string[]) {
   }
 
   return values.includes(String(getRecordValue(record, key) ?? ""));
+}
+
+function matchesDateRange(record: BaseRecord, key: string, start: string, end: string) {
+  if (!start && !end) {
+    return true;
+  }
+
+  const value = String(getRecordValue(record, key) ?? "");
+  return (!start || value >= start) && (!end || value <= end);
+}
+
+function getUsageLogPayload(record: BaseRecord, type: "request" | "response") {
+  const key = type === "request" ? "requestPayload" : "responsePayload";
+  const payload = getRecordValue(record, key);
+  if (typeof payload === "string" && payload.trim() && payload.trim() !== "{}") {
+    return payload;
+  }
+
+  const taskId = String(getRecordValue(record, "taskId") ?? "task_mock");
+  const modelName = String(getRecordValue(record, "modelName") ?? "glm-5.2");
+  const statusCode = Number(getRecordValue(record, "statusCode") ?? 200);
+  const createdAt = String(getRecordValue(record, "requestedAt") ?? "");
+
+  if (type === "request") {
+    return {
+      model: modelName,
+      messages: [
+        {
+          role: "system",
+          content: "你是编程助手，擅长写简洁高效的代码。",
+        },
+        {
+          role: "user",
+          content: "写一个 Python 函数，计算斐波那契数列第 n 项。",
+        },
+      ],
+      stream: false,
+      temperature: 1,
+      metadata: {
+        task_id: taskId,
+        customer: getRecordValue(record, "customerName") ?? "杭州星河科技有限公司",
+      },
+    };
+  }
+
+  return {
+    id: `chatcmpl_${taskId.replace(/^task_/, "")}`,
+    request_id: `req_${taskId}`,
+    created: createdAt,
+    model: modelName,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: "def fibonacci(n: int) -> int:\\n    if n < 0:\\n        raise ValueError('n must be non-negative')\\n    a, b = 0, 1\\n    for _ in range(n):\\n        a, b = b, a + b\\n    return a",
+          reasoning_content: "使用迭代方式避免递归重复计算，时间复杂度 O(n)，空间复杂度 O(1)。",
+          tool_calls: [],
+        },
+        finish_reason: statusCode === 200 ? "stop" : "error",
+      },
+    ],
+    usage: {
+      prompt_tokens: 1280,
+      completion_tokens: 420,
+      prompt_tokens_details: {
+        cached_tokens: 256,
+      },
+      total_tokens: 1700,
+    },
+    content_filter: [
+      {
+        role: "assistant",
+        level: 0,
+      },
+    ],
+  };
+}
+
+function formatJsonPayload(value: unknown) {
+  if (typeof value !== "string") {
+    return JSON.stringify(value ?? {}, null, 2);
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value || "{}";
+  }
 }
 
 function formatCell(value: unknown): React.ReactNode {

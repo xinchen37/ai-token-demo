@@ -47,6 +47,19 @@ const formatProductDiscount = (value: number) => {
   return `${value <= 1 ? Number((value * 10).toFixed(2)) : value} 折`;
 };
 
+const formatTokenCount = (value: unknown) => Number(value || 0).toLocaleString("zh-CN");
+
+const formatTotalTokens = (value: unknown, record: BaseRecord) => {
+  const totalTokens = Number(value || 0);
+  if (totalTokens > 0) {
+    return formatTokenCount(totalTokens);
+  }
+
+  const inputTokens = Number(getRecordValue(record, "inputTokens") || 0);
+  const outputTokens = Number(getRecordValue(record, "outputTokens") || 0);
+  return formatTokenCount(inputTokens + outputTokens);
+};
+
 export const pageConfigs = {
   models: {
     entity: "models",
@@ -176,12 +189,14 @@ export const pageConfigs = {
     readOnly: true,
     columns: [
       { key: "recordNo", label: "记录ID" },
+      { key: "calledAt", label: "调用时间" },
       { key: "customerName", label: "客户名称" },
-      { key: "keyName", label: "API Key" },
+      { key: "keyName", label: "API Key名称" },
       { key: "modelName", label: "调用模型" },
-      { key: "inputTokens", label: "输入Token" },
-      { key: "outputTokens", label: "输出Token" },
-      { key: "amount", label: "消费金额", format: (value) => formatCurrency(Number(value)) },
+      { key: "inputTokens", label: "输入Token数", format: formatTokenCount },
+      { key: "outputTokens", label: "输出Token数", format: formatTokenCount },
+      { key: "totalTokens", label: "总Token数", format: formatTotalTokens },
+      { key: "amount", label: "消费金额（¥）", format: (value) => formatCurrency(Number(value)) },
       { key: "status", label: "状态" },
     ],
     fields: [
@@ -192,6 +207,7 @@ export const pageConfigs = {
       { key: "modelName", label: "调用模型", kind: "select", optionSource: "models" },
       { key: "inputTokens", label: "输入Token", kind: "number" },
       { key: "outputTokens", label: "输出Token", kind: "number" },
+      { key: "totalTokens", label: "总Token", kind: "number" },
       { key: "amount", label: "消费金额", kind: "number" },
       { key: "calledAt", label: "调用时间", kind: "datetime" },
       { key: "status", label: "状态", kind: "select", options: ["成功", "失败"] },
@@ -208,7 +224,7 @@ export const pageConfigs = {
       { key: "taskId", label: "任务ID" },
       { key: "requestedAt", label: "请求时间" },
       { key: "finishedAt", label: "结束时间" },
-      { key: "durationMs", label: "耗时(ms)" },
+      { key: "durationMs", label: "总耗时（ms）" },
       { key: "customerName", label: "客户名称" },
       { key: "modelName", label: "模型" },
       { key: "statusCode", label: "状态码" },
@@ -217,10 +233,12 @@ export const pageConfigs = {
       { key: "taskId", label: "任务ID", required: true },
       { key: "requestedAt", label: "请求时间", kind: "datetime" },
       { key: "finishedAt", label: "结束时间", kind: "datetime" },
-      { key: "durationMs", label: "耗时(ms)", kind: "number" },
+      { key: "durationMs", label: "总耗时（ms）", kind: "number" },
       { key: "customerName", label: "客户名称", kind: "select", optionSource: "customers" },
       { key: "modelName", label: "模型", kind: "select", optionSource: "models" },
       { key: "statusCode", label: "状态码", kind: "number" },
+      { key: "requestPayload", label: "请求内容", kind: "textarea" },
+      { key: "responsePayload", label: "响应内容", kind: "textarea" },
     ],
   } satisfies RecordPageConfig,
   reports: {

@@ -453,6 +453,7 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
         const baseTokens = model?.type === "视频" ? 45_000 : 90_000;
         const inputTokens = baseTokens + stableNumber(`${customer.id}-${modelName}-input-${dayIndex}`, model?.type === "视频" ? 70_000 : 420_000);
         const outputTokens = Math.round(inputTokens * (0.42 + stableNumber(`${customer.id}-${modelName}-ratio-${dayIndex}`, 28) / 100));
+        const totalTokens = inputTokens + outputTokens;
         const inputPrice = model?.inputPrice ?? 6;
         const outputPrice = model?.outputPrice ?? 18;
         const amount = roundCurrency(((inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice) * 1000);
@@ -475,6 +476,7 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
           modelName,
           inputTokens,
           outputTokens,
+          totalTokens,
           amount,
           calledAt,
           status: "成功",

@@ -99,6 +99,7 @@ export interface ConsumptionRecord extends BaseRecord {
   modelName: string;
   inputTokens: number;
   outputTokens: number;
+  totalTokens: number;
   amount: number;
   calledAt: string;
   status: "成功" | "失败";
@@ -112,6 +113,8 @@ export interface UsageLog extends BaseRecord {
   customerName: string;
   modelName: string;
   statusCode: 200 | 400 | 429 | 500;
+  requestPayload: string;
+  responsePayload: string;
 }
 
 export interface Contract extends BaseRecord {
