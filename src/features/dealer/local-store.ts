@@ -243,7 +243,10 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
     }
   }
 
-  const nextEnterpriseMembers = mergeById(normalizedData.enterpriseMembers, dealerSeedData.enterpriseMembers);
+  const customerLoginAccounts = new Set(normalizedData.customers.map((customer) => customer.loginAccount));
+  const nextEnterpriseMembers = mergeById(normalizedData.enterpriseMembers, dealerSeedData.enterpriseMembers).map((member) =>
+    customerLoginAccounts.has(member.loginAccount) ? { ...member, role: "所有者" } : member,
+  );
   const nextEnterpriseRoles = mergeById(normalizedData.enterpriseRoles, dealerSeedData.enterpriseRoles);
 
   return {

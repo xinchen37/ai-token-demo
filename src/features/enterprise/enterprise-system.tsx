@@ -108,6 +108,8 @@ export function EnterpriseSystem({ loginAccount, onLogout }: { loginAccount: str
   const { data, updateData, resetData } = useDealerStore();
   const [activePage, setActivePage] = React.useState<EnterprisePageKey>(() => getPageFromLocation());
   const context = React.useMemo(() => resolveEnterpriseContext(data, loginAccount), [data, loginAccount]);
+  const allowedPages = React.useMemo(() => resolveEnterpriseAllowedPages(context.roles, context.member, context.customer), [context.roles, context.member, context.customer]);
+  const effectivePage = allowedPages.has(activePage) ? activePage : [...allowedPages][0] ?? "profile";
 
   React.useEffect(() => {
     syncRoute(activePage, true);
@@ -118,7 +120,16 @@ export function EnterpriseSystem({ loginAccount, onLogout }: { loginAccount: str
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  React.useEffect(() => {
+    if (!allowedPages.has(activePage)) {
+      changePage(effectivePage);
+    }
+  }, [activePage, allowedPages, effectivePage]);
+
   function changePage(page: EnterprisePageKey) {
+    if (!allowedPages.has(page)) {
+      return;
+    }
     setActivePage(page);
     syncRoute(page);
   }
@@ -184,24 +195,25 @@ export function EnterpriseSystem({ loginAccount, onLogout }: { loginAccount: str
   }
 
   return (
-    <EnterpriseLayout activePage={activePage} customer={context.customer} member={context.member} onLogout={onLogout} onPageChange={changePage} onResetData={resetData}>
-      {activePage === "dashboard" ? <Dashboard data={data} customer={context.customer} onPageChange={changePage} /> : null}
-      {activePage === "models" ? <Models data={data} customer={context.customer} /> : null}
-      {activePage === "trial" ? <Trial data={data} customer={context.customer} /> : null}
-      {activePage === "apiKeys" ? <ApiKeys data={data} customer={context.customer} onCreate={createApiKey} onUpdate={updateApiKey} onDelete={deleteApiKey} /> : null}
-      {activePage === "consumptions" ? <ConsumptionTable data={data} customer={context.customer} /> : null}
-      {activePage === "usageLogs" ? <UsageLogTable data={data} customer={context.customer} /> : null}
-      {activePage === "bills" ? <Bills data={data} customer={context.customer} /> : null}
-      {activePage === "members" ? <Members members={context.members} roles={context.roles} customer={context.customer} onSave={upsertMember} /> : null}
-      {activePage === "roles" ? <Roles customer={context.customer} roles={context.roles} onDelete={deleteRole} onSave={upsertRole} /> : null}
-      {activePage === "teamReports" ? <TeamReports data={data} customer={context.customer} members={context.members} /> : null}
-      {activePage === "profile" ? <Profile member={context.member} customer={context.customer} onSave={upsertMember} /> : null}
+    <EnterpriseLayout activePage={effectivePage} allowedPages={allowedPages} customer={context.customer} member={context.member} onLogout={onLogout} onPageChange={changePage} onResetData={resetData}>
+      {effectivePage === "dashboard" ? <Dashboard data={data} customer={context.customer} onPageChange={changePage} /> : null}
+      {effectivePage === "models" ? <Models data={data} customer={context.customer} /> : null}
+      {effectivePage === "trial" ? <Trial data={data} customer={context.customer} /> : null}
+      {effectivePage === "apiKeys" ? <ApiKeys data={data} customer={context.customer} onCreate={createApiKey} onUpdate={updateApiKey} onDelete={deleteApiKey} /> : null}
+      {effectivePage === "consumptions" ? <ConsumptionTable data={data} customer={context.customer} /> : null}
+      {effectivePage === "usageLogs" ? <UsageLogTable data={data} customer={context.customer} /> : null}
+      {effectivePage === "bills" ? <Bills data={data} customer={context.customer} /> : null}
+      {effectivePage === "members" ? <Members members={context.members} roles={context.roles} customer={context.customer} onSave={upsertMember} /> : null}
+      {effectivePage === "roles" ? <Roles customer={context.customer} roles={context.roles} onDelete={deleteRole} onSave={upsertRole} /> : null}
+      {effectivePage === "teamReports" ? <TeamReports data={data} customer={context.customer} members={context.members} /> : null}
+      {effectivePage === "profile" ? <Profile member={context.member} customer={context.customer} onSave={upsertMember} /> : null}
     </EnterpriseLayout>
   );
 }
 
-function EnterpriseLayout({ activePage, customer, member, onLogout, onPageChange, onResetData, children }: { activePage: EnterprisePageKey; customer: Customer; member: EnterpriseMember; onLogout: () => void; onPageChange: (page: EnterprisePageKey) => void; onResetData: () => void; children: React.ReactNode }) {
+function EnterpriseLayout({ activePage, allowedPages, customer, member, onLogout, onPageChange, onResetData, children }: { activePage: EnterprisePageKey; allowedPages: ReadonlySet<EnterprisePageKey>; customer: Customer; member: EnterpriseMember; onLogout: () => void; onPageChange: (page: EnterprisePageKey) => void; onResetData: () => void; children: React.ReactNode }) {
   const activeLabel = getAllEnterpriseNavItems().find((item) => item.key === activePage)?.label ?? "看板";
+  const visibleNavGroups = React.useMemo(() => filterEnterpriseNavGroups(allowedPages), [allowedPages]);
   const [openBranches, setOpenBranches] = React.useState<Record<string, boolean>>({});
   const avatar = getAvatarText(member.name);
 
@@ -235,7 +247,7 @@ function EnterpriseLayout({ activePage, customer, member, onLogout, onPageChange
           </div>
         </div>
         <nav className="mt-5 h-[calc(100vh-190px)] overflow-y-auto px-4 pb-8">
-          {navGroups.map((group, index) => (
+          {visibleNavGroups.map((group, index) => (
             <div key={`${group.label}-${index}`} className="border-t border-dashed border-slate-100 first:border-t-0">
               {group.label ? <div className="pb-2 pt-4 text-sm text-slate-400">{group.label}</div> : null}
               <div className="space-y-1">
@@ -597,7 +609,7 @@ function Members({ members, roles, customer, onSave }: { members: EnterpriseMemb
   const [draft, setDraft] = React.useState<EnterpriseMember>(() => createMemberDraft(customer));
   const [statusDraft, setStatusDraft] = React.useState<EnterpriseMember>(() => createMemberDraft(customer));
   const isEditing = Boolean(draft.id);
-  const roleOptions = ["管理员", "财务", "销售", "运维"];
+  const roleOptions = ["所有者", "管理员", "财务", "销售", "运维"];
   const filteredMembers = members.filter((member) => {
     const matchKeyword = !keyword.trim() || member.name.includes(keyword.trim()) || member.loginAccount.includes(keyword.trim());
     const matchRole = roleFilter === "全部角色" || member.role === roleFilter;
@@ -870,19 +882,19 @@ function Profile({ member, customer, onSave }: { member: EnterpriseMember; custo
           </div>
 
           <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={saveProfile}>
-            <label className="space-y-2 text-sm">
+            <label className="space-y-3 text-sm">
               <span className="font-medium text-slate-600">姓名</span>
               <Input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="User" />
             </label>
-            <label className="space-y-2 text-sm">
+            <label className="space-y-3 text-sm">
               <span className="font-medium text-slate-600">角色</span>
               <Input value={draft.role} disabled />
             </label>
-            <label className="space-y-2 text-sm">
+            <label className="space-y-3 text-sm">
               <span className="font-medium text-slate-600">手机号</span>
               <Input value={draft.loginAccount} onChange={(event) => setDraft((current) => ({ ...current, loginAccount: event.target.value }))} />
             </label>
-            <label className="space-y-2 text-sm">
+            <label className="space-y-3 text-sm">
               <span className="font-medium text-slate-600">注册时间</span>
               <Input value={draft.createdAt || customer.createdAt} disabled />
             </label>
@@ -1494,6 +1506,78 @@ function getActiveBranch(activePage: EnterprisePageKey) {
   return null;
 }
 
+function filterEnterpriseNavGroups(allowedPages: ReadonlySet<EnterprisePageKey>) {
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.flatMap((item): NavEntry[] => {
+        if (isNavBranch(item)) {
+          const children = item.children.filter((child) => allowedPages.has(child.key));
+          return children.length > 0 ? [{ ...item, children }] : [];
+        }
+
+        return allowedPages.has(item.key) ? [item] : [];
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+const enterpriseLegacyPermissionPages: Record<string, EnterprisePageKey[]> = {
+  看板: ["dashboard"],
+  模型: ["models", "trial"],
+  模型管理: ["models", "trial"],
+  API: ["apiKeys", "consumptions", "usageLogs"],
+  财务: ["bills"],
+  财务管理: ["bills"],
+  团队管理: ["members", "roles", "teamReports"],
+  管理: ["members", "roles", "teamReports"],
+  个人中心: ["profile"],
+};
+
+const enterpriseModulePages: Record<string, EnterprisePageKey[]> = {
+  看板: ["dashboard"],
+  模型管理: ["models", "trial"],
+  "API Key": ["apiKeys"],
+  消费记录: ["consumptions"],
+  使用日志: ["usageLogs"],
+  账单: ["bills"],
+  团队成员: ["members"],
+  角色管理: ["roles"],
+  团队报表: ["teamReports"],
+  个人中心: ["profile"],
+};
+
+function resolveEnterpriseAllowedPages(roles: EnterpriseRole[], member: EnterpriseMember, customer: Customer): ReadonlySet<EnterprisePageKey> {
+  const isOwner = member.role === "所有者" || member.loginAccount === customer.loginAccount;
+  if (isOwner) {
+    return new Set(Object.keys(routes) as EnterprisePageKey[]);
+  }
+
+  const role = roles.find((item) => item.name === member.role && item.status === "启用");
+  if (!role) {
+    return new Set<EnterprisePageKey>(["profile"]);
+  }
+
+  const pages = new Set<EnterprisePageKey>();
+  for (const page of parseEnterprisePermissionPages(role.permissions)) {
+    pages.add(page);
+  }
+  pages.add("profile");
+
+  return pages.size > 0 ? pages : new Set<EnterprisePageKey>(["profile"]);
+}
+
+function parseEnterprisePermissionPages(value: string): EnterprisePageKey[] {
+  return value
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .flatMap((item) => {
+      const [moduleLabel] = item.split("-");
+      return enterpriseModulePages[moduleLabel] ?? enterpriseLegacyPermissionPages[moduleLabel] ?? [];
+    });
+}
+
 function resolveEnterpriseContext(data: DealerData, loginAccount: string) {
   const member = data.enterpriseMembers.find((item) => item.loginAccount === loginAccount);
   const customer = data.customers.find((item) => item.loginAccount === loginAccount)
@@ -1504,7 +1588,7 @@ function resolveEnterpriseContext(data: DealerData, loginAccount: string) {
     customerName: customer.company,
     name: customer.contact || "User",
     loginAccount: customer.loginAccount,
-    role: "企业管理员",
+    role: "所有者",
     status: "启用" as const,
     lastLoginAt: "未登录",
     createdAt: customer.createdAt,

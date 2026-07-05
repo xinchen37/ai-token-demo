@@ -187,6 +187,7 @@ export interface DealerProfile {
   phone: string;
   registeredAt: string;
   avatarText: string;
+  avatarDataUrl?: string;
 }
 
 export interface DealerData {
