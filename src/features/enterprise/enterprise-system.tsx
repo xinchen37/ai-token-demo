@@ -181,7 +181,7 @@ export function EnterpriseSystem({
   loginAccount: string;
   onLogout: () => void;
 }) {
-  const { data, updateData, resetData } = useDealerStore();
+  const { data, updateData } = useDealerStore();
   const [activePage, setActivePage] = React.useState<EnterprisePageKey>(() =>
     getPageFromLocation(),
   );
@@ -343,7 +343,6 @@ export function EnterpriseSystem({
       member={context.member}
       onLogout={onLogout}
       onPageChange={changePage}
-      onResetData={resetData}
     >
       {effectivePage === "dashboard" ? (
         <Dashboard
@@ -417,7 +416,6 @@ function EnterpriseLayout({
   member,
   onLogout,
   onPageChange,
-  onResetData,
   children,
 }: {
   activePage: EnterprisePageKey;
@@ -426,7 +424,6 @@ function EnterpriseLayout({
   member: EnterpriseMember;
   onLogout: () => void;
   onPageChange: (page: EnterprisePageKey) => void;
-  onResetData: () => void;
   children: React.ReactNode;
 }) {
   const activeLabel =
@@ -628,20 +625,6 @@ function EnterpriseLayout({
               <HeaderIcon label="通知">
                 <Bell className="size-5" />
               </HeaderIcon>
-              <button
-                className="hidden h-11 rounded-md border border-slate-200 px-4 text-sm font-medium text-slate-500 hover:bg-slate-50 md:block"
-                onClick={onResetData}
-                type="button"
-              >
-                重置本地数据
-              </button>
-              <button
-                className="flex size-11 items-center justify-center rounded-full bg-[#1155ff] text-white shadow-sm shadow-blue-200"
-                aria-label="客服"
-                type="button"
-              >
-                <Headphones className="size-5" />
-              </button>
             </div>
           </header>
           <main className="pt-6">{children}</main>
@@ -1168,6 +1151,7 @@ function UsageLogTable({
 
 function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
   const [activeTab, setActiveTab] = React.useState<BillTab>("current");
+  const [keywordDraft, setKeywordDraft] = React.useState("");
   const [keyword, setKeyword] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
@@ -1196,6 +1180,7 @@ function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
   });
 
   function resetFilters() {
+    setKeywordDraft("");
     setKeyword("");
     setPeriodStart("");
     setPeriodEnd("");
@@ -1221,8 +1206,15 @@ function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
               <input
                 className="h-10 w-64 outline-none"
                 placeholder="搜索订单号、客户名称"
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
+                value={keywordDraft}
+                onBlur={() => setKeyword(keywordDraft)}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    setKeyword(keywordDraft);
+                    event.currentTarget.blur();
+                  }
+                }}
               />
             </div>
             <DatePickerInput
@@ -1244,10 +1236,6 @@ function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
             <Button variant="secondary">
               <Download className="size-4" />
               导出账单
-            </Button>
-            <Button variant="primary">
-              <Search className="size-4" />
-              查询
             </Button>
             <Button variant="secondary" onClick={resetFilters}>
               <RotateCcw className="size-4" />
@@ -1303,6 +1291,7 @@ function Members({
 }) {
   const [open, setOpen] = React.useState(false);
   const [statusOpen, setStatusOpen] = React.useState(false);
+  const [keywordDraft, setKeywordDraft] = React.useState("");
   const [keyword, setKeyword] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("全部角色");
   const [statusFilter, setStatusFilter] = React.useState("全部状态");
@@ -1345,6 +1334,7 @@ function Members({
   }
 
   function resetFilters() {
+    setKeywordDraft("");
     setKeyword("");
     setRoleFilter("全部角色");
     setStatusFilter("全部状态");
@@ -1360,8 +1350,15 @@ function Members({
               <input
                 className="h-10 w-64 outline-none"
                 placeholder="搜索姓名、登录账号"
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
+                value={keywordDraft}
+                onBlur={() => setKeyword(keywordDraft)}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    setKeyword(keywordDraft);
+                    event.currentTarget.blur();
+                  }
+                }}
               />
             </div>
             <div className="w-36 shrink-0">
@@ -1474,6 +1471,7 @@ function Roles({
   onSave: (role: EnterpriseRole) => void;
   onDelete: (id: string) => void;
 }) {
+  const [keywordDraft, setKeywordDraft] = React.useState("");
   const [keyword, setKeyword] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<EnterpriseRole>(() =>
@@ -1510,8 +1508,15 @@ function Roles({
             <input
               className="h-10 w-72 outline-none"
               placeholder="搜索角色名称"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              value={keywordDraft}
+              onBlur={() => setKeyword(keywordDraft)}
+              onChange={(event) => setKeywordDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  setKeyword(keywordDraft);
+                  event.currentTarget.blur();
+                }
+              }}
             />
           </div>
           <div className="flex shrink-0 gap-2">
@@ -1519,7 +1524,13 @@ function Roles({
               <Plus className="size-4" />
               新建角色
             </Button>
-            <Button variant="secondary" onClick={() => setKeyword("")}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setKeywordDraft("");
+                setKeyword("");
+              }}
+            >
               <RotateCcw className="size-4" />
               重置
             </Button>
@@ -1694,10 +1705,6 @@ function TeamReports({
             <Button variant="secondary">
               <Download className="size-4" />
               导出
-            </Button>
-            <Button variant="primary">
-              <Search className="size-4" />
-              查询
             </Button>
             <Button variant="secondary" onClick={resetFilters}>
               <RotateCcw className="size-4" />

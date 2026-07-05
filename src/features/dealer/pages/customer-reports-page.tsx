@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronDown, Coins, Download, LineChart, RotateCcw, Search, Trophy, Users, Wallet, Zap } from "lucide-react";
+import { Check, ChevronDown, Coins, Download, LineChart, RotateCcw, Trophy, Users, Wallet, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { ConsumptionRecord, DealerData } from "../types";
@@ -32,7 +32,6 @@ const now = new Date("2026-07-03T14:00:00+08:00");
 
 export function CustomerReportsPage({ data }: { data: DealerData }) {
   const [activeTab, setActiveTab] = React.useState<ReportTab>("stats");
-  const [draftFilters, setDraftFilters] = React.useState<ReportFilters>(() => createDefaultFilters(data));
   const [filters, setFilters] = React.useState<ReportFilters>(() => createDefaultFilters(data));
   const reportRecords = React.useMemo(() => buildReportConsumptionRecords(data), [data]);
   const filteredRecords = React.useMemo(() => filterConsumptionRecords(data, reportRecords, filters), [data, reportRecords, filters]);
@@ -43,7 +42,6 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
 
   function resetFilters() {
     const nextFilters = createDefaultFilters(data);
-    setDraftFilters(nextFilters);
     setFilters(nextFilters);
   }
 
@@ -67,12 +65,11 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
 
       <ReportFilterPanel
         activeTab={activeTab}
-        filters={draftFilters}
+        filters={filters}
         customerOptions={data.customers.map((customer) => customer.company)}
         salesOptions={salesOptions}
         modelOptions={modelOptions}
-        onChange={setDraftFilters}
-        onQuery={() => setFilters(draftFilters)}
+        onChange={setFilters}
         onReset={resetFilters}
       />
 
@@ -92,7 +89,6 @@ function ReportFilterPanel({
   salesOptions,
   modelOptions,
   onChange,
-  onQuery,
   onReset,
 }: {
   activeTab: ReportTab;
@@ -101,12 +97,11 @@ function ReportFilterPanel({
   salesOptions: string[];
   modelOptions: string[];
   onChange: (filters: ReportFilters) => void;
-  onQuery: () => void;
   onReset: () => void;
 }) {
   return (
     <section className="relative z-20 rounded-md border border-slate-200 bg-white px-5 py-4 shadow-sm shadow-slate-100">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="w-[140px] shrink-0">
           <Select className="h-10 rounded-md pl-3 focus:border-[#1155ff] focus:ring-blue-100" value={filters.range} onChange={(event) => onChange({ ...filters, range: event.target.value as TimeRange })} aria-label="时间范围">
             <option value="today">今天</option>
@@ -129,17 +124,13 @@ function ReportFilterPanel({
         <FilterSelect ariaLabel="所属销售" className="w-[180px] shrink-0" value={filters.salesName} onChange={(value) => onChange({ ...filters, salesName: value })} options={["全部销售", ...salesOptions]} />
         <ModelMultiSelect value={filters.modelNames} options={modelOptions} onChange={(modelNames) => onChange({ ...filters, modelNames })} />
 
-        <div className="flex shrink-0 gap-2">
+        <div className="ml-auto flex shrink-0 gap-2">
           {activeTab === "details" ? (
             <Button className="h-10" variant="secondary">
               <Download className="size-4" />
               导出
             </Button>
           ) : null}
-          <Button className="h-10" variant="primary" onClick={onQuery}>
-            <Search className="size-4" />
-            查询
-          </Button>
           <Button className="h-10" variant="secondary" onClick={onReset}>
             <RotateCcw className="size-4" />
             重置

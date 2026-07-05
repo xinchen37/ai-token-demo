@@ -28,6 +28,7 @@ interface RecordPageProps {
 
 export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete }: RecordPageProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [keywordDraft, setKeywordDraft] = React.useState("");
   const [keyword, setKeyword] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
@@ -115,6 +116,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   }
 
   function resetFilters() {
+    setKeywordDraft("");
     setKeyword("");
     setPeriodStart("");
     setPeriodEnd("");
@@ -140,7 +142,19 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input className="pl-9 sm:w-72" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder={config.searchPlaceholder} />
+              <Input
+                className="pl-9 sm:w-72"
+                value={keywordDraft}
+                onBlur={() => setKeyword(keywordDraft)}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    setKeyword(keywordDraft);
+                    event.currentTarget.blur();
+                  }
+                }}
+                placeholder={config.searchPlaceholder}
+              />
             </div>
             {isBillsPage ? (
               <>

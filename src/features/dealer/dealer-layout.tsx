@@ -9,7 +9,6 @@ import {
   ClipboardList,
   FileKey2,
   FileText,
-  Headphones,
   Home,
   Layers,
   LineChart,
@@ -33,7 +32,6 @@ interface DealerLayoutProps {
   profile: DealerProfile;
   onLogout: () => void;
   onPageChange: (page: DealerPageKey) => void;
-  onResetData: () => void;
   children: React.ReactNode;
 }
 
@@ -107,7 +105,6 @@ export function DealerLayout({
   profile,
   onLogout,
   onPageChange,
-  onResetData,
   children,
 }: DealerLayoutProps) {
   const visibleNavGroups = React.useMemo(
@@ -307,18 +304,6 @@ export function DealerLayout({
               <HeaderIcon label="通知">
                 <Bell className="size-5" />
               </HeaderIcon>
-              <button
-                className="hidden h-11 rounded-md border border-slate-200 px-4 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 md:block"
-                onClick={onResetData}
-              >
-                重置本地数据
-              </button>
-              <button
-                className="flex size-11 items-center justify-center rounded-full bg-[#1155ff] text-white shadow-sm shadow-blue-200 transition-colors hover:bg-[#0648f4]"
-                aria-label="客服"
-              >
-                <Headphones className="size-5" />
-              </button>
             </div>
           </header>
 

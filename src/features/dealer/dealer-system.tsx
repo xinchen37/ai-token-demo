@@ -33,7 +33,7 @@ const pageByRoute = Object.fromEntries(
 
 export function DealerSystem({ loginAccount, onLogout }: { loginAccount: string; onLogout: () => void }) {
   const [activePage, setActivePage] = React.useState<DealerPageKey>(() => getPageFromLocation());
-  const { data, createRecord, updateRecord, deleteRecord, updateData, resetData } = useDealerStore();
+  const { data, createRecord, updateRecord, deleteRecord, updateData } = useDealerStore();
   const profile = React.useMemo(
     () => resolveProfile(data.profile, data.members, loginAccount),
     [data.members, data.profile, loginAccount],
@@ -68,7 +68,7 @@ export function DealerSystem({ loginAccount, onLogout }: { loginAccount: string;
   }
 
   return (
-    <DealerLayout activePage={effectivePage} allowedPages={allowedPages} profile={profile} onLogout={onLogout} onPageChange={changePage} onResetData={resetData}>
+    <DealerLayout activePage={effectivePage} allowedPages={allowedPages} profile={profile} onLogout={onLogout} onPageChange={changePage}>
       {effectivePage === "dashboard" ? <DashboardPage data={data} onPageChange={changePage} /> : null}
       {effectivePage === "trial" ? <TrialPage models={data.models} apiKeys={data.apiKeys} /> : null}
       {effectivePage === "reports" ? <CustomerReportsPage data={data} /> : null}
