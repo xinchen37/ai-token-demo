@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Bot, CalendarDays, Check, ChevronDown, Download, Edit3, Eye, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Bot, CalendarDays, Check, ChevronDown, Clock, Cpu, Download, Edit3, Eye, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -58,7 +58,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const isBillsPage = config.entity === "bills";
   const showActions = !config.readOnly;
   const canCreate = showActions && config.entity !== "models";
-  const canDelete = showActions && config.entity !== "models";
+  const canDelete = showActions && config.entity !== "models" && config.entity !== "products";
   const resolvedFields = React.useMemo(() => resolveFields(config.fields, data), [config.fields, data]);
   const emptyDraft = React.useMemo(() => buildEmptyDraft(resolvedFields), [resolvedFields]);
   const [draft, setDraft] = React.useState<Record<string, string | number>>(emptyDraft);
@@ -600,7 +600,7 @@ function ProductCardGrid({
   }
 
   return (
-    <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {records.map((record) => {
         const name = String(getRecordValue(record, "name") ?? "-");
         const packageMode = String(getRecordValue(record, "packageMode") ?? "-");
@@ -612,40 +612,52 @@ function ProductCardGrid({
         const billingMode = String(getRecordValue(record, "billingMode") ?? "-");
         const status = String(getRecordValue(record, "status") ?? "-");
         const isActive = status === "上架";
+        const relatedModelList = relatedModels.split(",").map((item) => item.trim()).filter(Boolean);
+        const stats = getProductCardStats(record, packageMode, tokenLimitM, monthlyTokenM, monthlyFee, discount);
 
         return (
-          <article key={record.id} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100 transition hover:border-blue-100 hover:shadow-md hover:shadow-slate-100">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="truncate text-base font-semibold text-slate-950">{name}</h3>
-                <p className="mt-2 text-sm text-slate-500">{packageMode} · {billingMode}</p>
+          <article key={record.id} className="flex min-h-[360px] flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100 transition hover:border-blue-200 hover:shadow-md hover:shadow-slate-100">
+            <div className="border-b border-slate-100 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="min-w-0 truncate text-base font-semibold text-slate-950">{name}</h3>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${isActive ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                  {isActive ? "已上架" : "已下架"}
+                </span>
               </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${isActive ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
-                {status}
-              </span>
+              <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                <Clock className="size-4 text-slate-400" />
+                <span>{getProductBillingLabel(packageMode, billingMode)}</span>
+              </div>
             </div>
 
-            <div className="mt-5 space-y-3 text-sm">
-              <ProductMeta label="产品ID" value={record.id} />
-              <ProductMeta label="关联模型" value={relatedModels} />
-              <ProductMeta label="输入价格" value={`${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M`} />
-              <ProductMeta label="输出价格" value={`${formatCurrency(Number(getRecordValue(record, "outputPrice") ?? 0))}/1M`} />
-              <ProductMeta label="缓存价格" value={`${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M`} />
-              <ProductMeta label="Tokens(M)" value={tokenLimitM} />
-              {packageMode === "按量包月" ? <ProductMeta label="每月总 Token" value={monthlyTokenM} /> : null}
-              {packageMode === "按量包月" || packageMode === "按金额包月" ? <ProductMeta label="每月总费用" value={formatCurrency(monthlyFee)} /> : null}
-              {packageMode === "不限时按量" ? <ProductMeta label="折扣" value={formatDiscount(discount)} /> : null}
-              <ProductMeta label="创建时间" value={record.createdAt} />
-              <ProductMeta label="最近更新" value={record.updatedAt} />
+            <div className="flex flex-1 flex-col p-5">
+              <div>
+                <div className="text-sm font-semibold text-slate-400">关联模型（预览）</div>
+                <div className="mt-3 flex min-h-[108px] flex-col items-start gap-2">
+                  {relatedModelList.length > 0 ? relatedModelList.slice(0, 4).map((model) => (
+                    <span key={model} className="inline-flex max-w-full items-center gap-2 rounded-md bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">
+                      <Cpu className="size-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{model}</span>
+                    </span>
+                  )) : (
+                    <span className="text-sm text-slate-400">暂无关联模型</span>
+                  )}
+                  {relatedModelList.length > 4 ? <span className="text-xs font-medium text-slate-400">+{relatedModelList.length - 4} 个模型</span> : null}
+                </div>
+              </div>
+
+              <div className="mt-auto grid grid-cols-2 gap-4 pt-6">
+                {stats.map((stat) => (
+                  <ProductCardStat key={stat.label} label={stat.label} value={stat.value} />
+                ))}
+              </div>
             </div>
 
-            <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
-              <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(record)}>
-                <Eye className="size-4" />
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
+              <Button className="h-10 px-4" variant="secondary" onClick={() => onDetail(record)}>
                 详情
               </Button>
-              <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => onEdit(record)}>
-                <Edit3 className="size-4" />
+              <Button className="h-10 px-4" variant="primary" onClick={() => onEdit(record)}>
                 编辑
               </Button>
               {canDelete ? (
@@ -748,13 +760,46 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
   );
 }
 
-function ProductMeta({ label, value }: { label: string; value: React.ReactNode }) {
+function ProductCardStat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="shrink-0 text-slate-400">{label}</span>
-      <span className="min-w-0 text-right font-medium text-slate-700">{value}</span>
+    <div>
+      <div className="truncate text-xs font-semibold text-slate-400">{label}</div>
+      <div className="mt-1 truncate text-lg font-semibold text-slate-950">{value}</div>
     </div>
   );
+}
+
+function getProductBillingLabel(packageMode: string, billingMode: string) {
+  const billingLabel = billingMode === "按量" ? "按量计费" : "套餐计费";
+  return packageMode.includes("包月") ? `${billingLabel}（包月）` : billingLabel;
+}
+
+function getProductCardStats(record: BaseRecord, packageMode: string, tokenLimitM: string, monthlyTokenM: string, monthlyFee: number, discount: number) {
+  if (packageMode === "按量包月") {
+    return [
+      { label: "价格", value: `${formatCurrency(monthlyFee)} / 月` },
+      { label: "总额度（M Tokens）", value: monthlyTokenM },
+    ];
+  }
+
+  if (packageMode === "按金额包月") {
+    return [
+      { label: "价格", value: `${formatCurrency(monthlyFee)} / 月` },
+      { label: "总额度（M Tokens）", value: tokenLimitM },
+    ];
+  }
+
+  if (packageMode === "不限时按量") {
+    return [
+      { label: "折扣", value: formatDiscount(discount) },
+      { label: "总额度（Tokens）", value: tokenLimitM },
+    ];
+  }
+
+  return [
+    { label: "输入价格", value: `${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M` },
+    { label: "总额度（M Tokens）", value: tokenLimitM },
+  ];
 }
 
 function FieldInput({ field, value, onChange }: { field: FieldConfig; value: string | number; onChange: (value: string | number) => void }) {

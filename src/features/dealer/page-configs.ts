@@ -1,9 +1,50 @@
 import { formatCurrency, maskApiKey } from "./dealer-utils";
 import type { RecordPageConfig } from "./pages/record-page";
+import type { BaseRecord } from "./types";
 
 const formatPermissions = (value: unknown) => {
   const labels = parsePermissionLabels(value);
   return labels.length > 0 ? labels.join("、") : "-";
+};
+
+const getRecordValue = (record: BaseRecord, key: string) => (record as BaseRecord & Record<string, unknown>)[key];
+
+const formatProductPriceSummary = (_value: unknown, record: BaseRecord) => {
+  const packageMode = String(getRecordValue(record, "packageMode") ?? "");
+  const monthlyFee = Number(getRecordValue(record, "monthlyFee") ?? 0);
+  const inputPrice = Number(getRecordValue(record, "inputPrice") ?? 0);
+  const outputPrice = Number(getRecordValue(record, "outputPrice") ?? 0);
+
+  if (packageMode === "按量包月" || packageMode === "按金额包月") {
+    return monthlyFee ? `${formatCurrency(monthlyFee)}/月` : "-";
+  }
+
+  return `入 ${formatCurrency(inputPrice)}/1M · 出 ${formatCurrency(outputPrice)}/1M`;
+};
+
+const formatProductQuotaSummary = (value: unknown, record: BaseRecord) => {
+  const packageMode = String(getRecordValue(record, "packageMode") ?? "");
+  const tokenLimitM = String(value || "不限");
+  const monthlyTokenM = String(getRecordValue(record, "monthlyTokenM") || "不限");
+  const discount = Number(getRecordValue(record, "discount") ?? 0);
+
+  if (packageMode === "按量包月") {
+    return `${monthlyTokenM} M/月`;
+  }
+
+  if (packageMode === "不限时按量") {
+    return `${formatProductDiscount(discount)} · ${tokenLimitM}`;
+  }
+
+  return tokenLimitM === "不限" ? "不限" : `${tokenLimitM} M`;
+};
+
+const formatProductDiscount = (value: number) => {
+  if (!value) {
+    return "-";
+  }
+
+  return `${value <= 1 ? Number((value * 10).toFixed(2)) : value} 折`;
 };
 
 export const pageConfigs = {
@@ -45,9 +86,13 @@ export const pageConfigs = {
     createLabel: "新建产品",
     searchPlaceholder: "搜索产品名称、模型、状态",
     columns: [
-      { key: "name", label: "产品名称" },
-      { key: "packageMode", label: "套餐模式" },
-      { key: "status", label: "状态" },
+      { key: "name", label: "产品名称", width: "220px" },
+      { key: "packageMode", label: "套餐模式", width: "140px" },
+      { key: "relatedModels", label: "关联模型", width: "240px" },
+      { key: "billingMode", label: "计费模式", width: "120px" },
+      { key: "inputPrice", label: "价格摘要", width: "220px", format: formatProductPriceSummary },
+      { key: "tokenLimitM", label: "额度/折扣", width: "150px", format: formatProductQuotaSummary },
+      { key: "status", label: "状态", width: "100px" },
     ],
     fields: [
       { key: "name", label: "产品名称", required: true },
