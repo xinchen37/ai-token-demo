@@ -299,14 +299,10 @@ export const pageConfigs = {
     searchPlaceholder: "搜索客户、账期、状态",
     readOnly: true,
     columns: [
-      { key: "billNo", label: "账单ID" },
       { key: "customerName", label: "客户名称" },
       { key: "period", label: "账期" },
-      { key: "openingBalance", label: "期初余额", format: (value) => formatCurrency(Number(value)) },
-      { key: "recharge", label: "本期充值", format: (value) => formatCurrency(Number(value)) },
       { key: "amount", label: "本期消费", format: (value) => formatCurrency(Number(value)) },
-      { key: "closingBalance", label: "期末余额", format: (value) => formatCurrency(Number(value)) },
-      { key: "status", label: "状态" },
+      { key: "status", label: "账单状态" },
     ],
     fields: [
       { key: "billNo", label: "账单ID", required: true },

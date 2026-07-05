@@ -54,6 +54,7 @@ export interface ModelProduct extends BaseRecord {
   name: string;
   packageMode: "按量包月" | "按金额包月" | "不限时包量" | "不限时按量";
   relatedModels: string;
+  modelConfigs?: string;
   inputPrice: number;
   outputPrice: number;
   cachePrice: number;
