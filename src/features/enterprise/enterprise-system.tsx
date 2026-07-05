@@ -6,6 +6,7 @@ import {
   Bot,
   Building2,
   Camera,
+  CalendarDays,
   ChevronDown,
   ChevronLeft,
   Coins,
@@ -569,8 +570,8 @@ function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
               <Search className="size-4 text-slate-400" />
               <input className="h-10 w-64 outline-none" placeholder="搜索订单号、客户名称" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
             </div>
-            <Input className="w-40" placeholder="开始时间" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
-            <Input className="w-40" placeholder="结束时间" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} />
+            <DatePickerInput className="w-40" mode="month" placeholder="开始时间" value={periodStart} onChange={setPeriodStart} />
+            <DatePickerInput className="w-40" mode="month" placeholder="结束时间" value={periodEnd} onChange={setPeriodEnd} />
           </div>
           <div className="flex gap-2">
             <Button variant="secondary"><Download className="size-4" />导出账单</Button>
@@ -787,8 +788,8 @@ function TeamReports({ data, customer, members }: { data: DealerData; customer: 
             />
             {range === "custom" ? (
               <>
-                <Input className="w-36" placeholder="开始时间" value={customStart} onChange={(event) => setCustomStart(event.target.value)} />
-                <Input className="w-36" placeholder="结束时间" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} />
+                <DatePickerInput className="w-36" placeholder="开始时间" value={customStart} onChange={setCustomStart} />
+                <DatePickerInput className="w-36" placeholder="结束时间" value={customEnd} onChange={setCustomEnd} />
               </>
             ) : null}
           </div>
@@ -962,7 +963,7 @@ function ApiKeyForm({ draft, models, onChange, onSave, onCancel }: { draft: ApiK
           <FormField label="剩余额度"><Input min={0} type="number" value={draft.quotaRemain} onChange={(event) => onChange({ ...draft, quotaRemain: Number(event.target.value) })} /></FormField>
           <FormField label="每日限额"><Input min={0} type="number" value={draft.dailyLimit} onChange={(event) => onChange({ ...draft, dailyLimit: Number(event.target.value) })} /></FormField>
           <FormField label="IP 白名单"><Input value={draft.ipWhitelist} placeholder="不限或多个 IP 用逗号分隔" onChange={(event) => onChange({ ...draft, ipWhitelist: event.target.value })} /></FormField>
-          <FormField label="过期时间"><Input value={draft.expiresAt} placeholder="2027-07-03 23:59" onChange={(event) => onChange({ ...draft, expiresAt: event.target.value })} /></FormField>
+          <FormField label="过期时间"><DatePickerInput className="h-11" mode="datetime" placeholder="过期时间" value={draft.expiresAt} onChange={(expiresAt) => onChange({ ...draft, expiresAt })} /></FormField>
           <FormField label="状态"><Select value={draft.status} onChange={(event) => onChange({ ...draft, status: event.target.value as CustomerApiKey["status"] })}><option>已启用</option><option>已停用</option></Select></FormField>
         </div>
       </div>
@@ -1217,6 +1218,38 @@ function Toolbar({ placeholder, action }: { placeholder: string; action?: React.
 
 function TableWithToolbar({ placeholder, columns, rows }: { placeholder: string; columns: string[]; rows: React.ReactNode[][] }) {
   return <div className="space-y-4"><Toolbar placeholder={placeholder} /><SimpleTable columns={columns} rows={rows} /></div>;
+}
+
+function DatePickerInput({ className, mode = "date", placeholder, value, onChange }: { className?: string; mode?: "date" | "month" | "datetime"; placeholder: string; value: string; onChange: (value: string) => void }) {
+  const inputType = mode === "datetime" ? "datetime-local" : mode;
+  const inputValue = mode === "datetime" ? toDateTimeInputValue(value) : value;
+
+  function handleChange(nextValue: string) {
+    onChange(mode === "datetime" ? fromDateTimeInputValue(nextValue) : nextValue);
+  }
+
+  return (
+    <label className={cn("relative flex h-10 items-center rounded-md border border-slate-200 bg-white text-sm transition-colors focus-within:border-[#1155ff] focus-within:ring-2 focus-within:ring-blue-100", className)}>
+      <CalendarDays className="pointer-events-none absolute left-3 size-4 text-slate-400" />
+      {!inputValue ? <span className="pointer-events-none absolute left-9 text-slate-400">{placeholder}</span> : null}
+      <input
+        aria-label={placeholder}
+        className={cn("h-full w-full cursor-pointer bg-transparent pl-9 pr-3 outline-none [color-scheme:light]", inputValue ? "text-slate-700" : "text-transparent focus:text-transparent")}
+        type={inputType}
+        value={inputValue}
+        onChange={(event) => handleChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function toDateTimeInputValue(value: string) {
+  if (!value) return "";
+  return value.includes("T") ? value.slice(0, 16) : value.replace(" ", "T").slice(0, 16);
+}
+
+function fromDateTimeInputValue(value: string) {
+  return value.replace("T", " ");
 }
 
 function SimpleTable({ columns, rows }: { columns: string[]; rows: React.ReactNode[][] }) {

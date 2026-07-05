@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronDown, Edit3, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Edit3, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -422,10 +422,21 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
     );
   }
 
+  if (field.kind === "datetime" || field.kind === "month") {
+    return (
+      <DatePickerField
+        mode={field.kind}
+        placeholder={field.placeholder ?? field.label}
+        value={String(value)}
+        onChange={onChange}
+      />
+    );
+  }
+
   return (
     <Input
       className="h-11 rounded-lg bg-slate-50/70 px-4 focus:border-[#1155ff] focus:bg-white focus:ring-blue-100"
-      type={field.kind === "number" ? "number" : field.kind === "datetime" ? "datetime-local" : "text"}
+      type={field.kind === "number" ? "number" : "text"}
       value={String(value)}
       onChange={(event) => onChange(field.kind === "number" ? Number(event.target.value) : event.target.value)}
       placeholder={field.placeholder}
@@ -631,6 +642,41 @@ function MultiSelectInput({ field, value, onChange }: { field: FieldConfig; valu
       ) : null}
     </div>
   );
+}
+
+function DatePickerField({ mode, placeholder, value, onChange }: { mode: "datetime" | "month"; placeholder: string; value: string; onChange: (value: string) => void }) {
+  const inputType = mode === "datetime" ? "datetime-local" : "month";
+  const inputValue = mode === "datetime" ? toDateTimeInputValue(value) : value;
+
+  function handleChange(nextValue: string) {
+    onChange(mode === "datetime" ? fromDateTimeInputValue(nextValue) : nextValue);
+  }
+
+  return (
+    <label className="relative flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50/70 text-sm transition-colors focus-within:border-[#1155ff] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+      <CalendarDays className="pointer-events-none absolute left-4 size-4 text-slate-400" />
+      {!inputValue ? <span className="pointer-events-none absolute left-10 text-slate-400">{placeholder}</span> : null}
+      <input
+        aria-label={placeholder}
+        className={[
+          "h-full w-full cursor-pointer bg-transparent pl-10 pr-4 outline-none [color-scheme:light]",
+          inputValue ? "text-slate-700" : "text-transparent focus:text-transparent",
+        ].join(" ")}
+        type={inputType}
+        value={inputValue}
+        onChange={(event) => handleChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function toDateTimeInputValue(value: string) {
+  if (!value) return "";
+  return value.includes("T") ? value.slice(0, 16) : value.replace(" ", "T").slice(0, 16);
+}
+
+function fromDateTimeInputValue(value: string) {
+  return value.replace("T", " ");
 }
 
 function buildEmptyDraft(fields: FieldConfig[]): Record<string, string | number> {

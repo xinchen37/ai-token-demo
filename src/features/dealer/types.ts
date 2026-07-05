@@ -210,7 +210,7 @@ export interface DealerData {
 
 export type EntityRecord = DealerData[EntityKey][number];
 
-export type FieldKind = "text" | "number" | "select" | "multiSelect" | "permissionMatrix" | "textarea" | "datetime";
+export type FieldKind = "text" | "number" | "select" | "multiSelect" | "permissionMatrix" | "textarea" | "datetime" | "month";
 export type FieldOptionSource = "customers" | "models" | "products" | "salesMembers" | "apiKeys" | "roles";
 
 export interface FieldConfig {
