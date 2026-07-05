@@ -101,10 +101,24 @@ const navGroups: Array<{ label: string; items: NavEntry[] }> = [
   },
 ];
 
-export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPageChange, onResetData, children }: DealerLayoutProps) {
-  const visibleNavGroups = React.useMemo(() => filterNavGroups(allowedPages), [allowedPages]);
-  const activeLabel = getAllNavItems().find((item) => item.key === activePage)?.label ?? "看板";
-  const [openBranches, setOpenBranches] = React.useState<Record<string, boolean>>({});
+export function DealerLayout({
+  activePage,
+  allowedPages,
+  profile,
+  onLogout,
+  onPageChange,
+  onResetData,
+  children,
+}: DealerLayoutProps) {
+  const visibleNavGroups = React.useMemo(
+    () => filterNavGroups(allowedPages),
+    [allowedPages],
+  );
+  const activeLabel =
+    getAllNavItems().find((item) => item.key === activePage)?.label ?? "看板";
+  const [openBranches, setOpenBranches] = React.useState<
+    Record<string, boolean>
+  >({});
 
   React.useEffect(() => {
     const activeBranch = getActiveBranch(activePage, visibleNavGroups);
@@ -139,8 +153,12 @@ export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPa
               {profile.avatarText}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-slate-800">{profile.name}</div>
-              <div className="truncate text-sm text-slate-400">{profile.phone}</div>
+              <div className="truncate text-sm font-medium text-slate-800">
+                {profile.name}
+              </div>
+              <div className="truncate text-sm text-slate-400">
+                {profile.phone}
+              </div>
             </div>
             <ChevronDown className="size-5 text-slate-700 transition-transform group-hover:rotate-180" />
           </div>
@@ -167,25 +185,46 @@ export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPa
 
         <nav className="mt-5 h-[calc(100vh-190px)] overflow-y-auto px-4 pb-8">
           {visibleNavGroups.map((group, groupIndex) => (
-            <div key={`${group.label}-${groupIndex}`} className="border-t border-dashed border-slate-100 first:border-t-0">
-              {group.label ? <div className="pb-2 pt-4 text-sm text-slate-400">{group.label}</div> : null}
+            <div
+              key={`${group.label}-${groupIndex}`}
+              className="border-t border-dashed border-slate-100 first:border-t-0"
+            >
+              {group.label ? (
+                <div className="pb-2 pt-4 text-sm text-slate-400">
+                  {group.label}
+                </div>
+              ) : null}
               <div className="space-y-1">
                 {group.items.map((item) => {
                   if (isNavBranch(item)) {
                     const open = Boolean(openBranches[item.label]);
-                    const selected = item.children.some((child) => child.key === activePage);
+                    const selected = item.children.some(
+                      (child) => child.key === activePage,
+                    );
                     return (
                       <div key={item.label}>
                         <button
                           className={cn(
                             "flex h-12 w-full items-center gap-3 rounded-md px-4 text-left text-base font-medium transition-colors",
-                            selected ? "text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                            selected
+                              ? "text-slate-900"
+                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                           )}
                           onClick={() => toggleBranch(item.label)}
                         >
-                          <item.icon className={cn("size-5", selected ? "text-[#1155ff]" : "text-slate-400")} />
+                          <item.icon
+                            className={cn(
+                              "size-5",
+                              selected ? "text-[#1155ff]" : "text-slate-400",
+                            )}
+                          />
                           <span className="flex-1">{item.label}</span>
-                          <ChevronDown className={cn("size-4 text-slate-400 transition-transform", open ? "rotate-180" : "")} />
+                          <ChevronDown
+                            className={cn(
+                              "size-4 text-slate-400 transition-transform",
+                              open ? "rotate-180" : "",
+                            )}
+                          />
                         </button>
                         {open ? (
                           <div className="mt-1 space-y-1 pl-8">
@@ -196,11 +235,20 @@ export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPa
                                   key={child.key}
                                   className={cn(
                                     "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium transition-colors",
-                                    childSelected ? "bg-[#1155ff] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                                    childSelected
+                                      ? "bg-[#1155ff] text-white shadow-sm"
+                                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                                   )}
                                   onClick={() => onPageChange(child.key)}
                                 >
-                                  <child.icon className={cn("size-4", childSelected ? "text-white/85" : "text-slate-400")} />
+                                  <child.icon
+                                    className={cn(
+                                      "size-4",
+                                      childSelected
+                                        ? "text-white/85"
+                                        : "text-slate-400",
+                                    )}
+                                  />
                                   <span className="flex-1">{child.label}</span>
                                 </button>
                               );
@@ -217,11 +265,18 @@ export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPa
                       key={item.key}
                       className={cn(
                         "flex h-12 w-full items-center gap-3 rounded-md px-4 text-left text-base font-medium transition-colors",
-                        selected ? "bg-[#1155ff] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                        selected
+                          ? "bg-[#1155ff] text-white shadow-sm"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                       )}
                       onClick={() => onPageChange(item.key)}
                     >
-                      <item.icon className={cn("size-5", selected ? "text-white/85" : "text-slate-400")} />
+                      <item.icon
+                        className={cn(
+                          "size-5",
+                          selected ? "text-white/85" : "text-slate-400",
+                        )}
+                      />
                       <span className="flex-1">{item.label}</span>
                     </button>
                   );
@@ -233,13 +288,19 @@ export function DealerLayout({ activePage, allowedPages, profile, onLogout, onPa
       </aside>
 
       <div className="min-h-screen bg-[#f6f7f9] p-4 lg:ml-[300px] lg:p-4">
-        <div className="min-h-[calc(100vh-32px)] rounded-[32px] border border-slate-200 bg-[#f8f9fb] p-4 shadow-sm shadow-slate-100">
+        <div className="min-h-[calc(100vh-32px)] rounded-[24px] border border-slate-200 bg-[#f8f9fb] p-4 shadow-sm shadow-slate-100">
           <header className="sticky top-4 z-20 flex h-16 items-center justify-between rounded-md border border-slate-200 bg-white px-4 shadow-sm shadow-slate-100">
             <div className="flex min-w-0 items-center gap-3">
-              <Button className="lg:hidden" variant="ghost" aria-label="打开导航">
+              <Button
+                className="lg:hidden"
+                variant="ghost"
+                aria-label="打开导航"
+              >
                 <Menu className="size-4" />
               </Button>
-              <h1 className="truncate text-lg font-bold text-slate-950 md:text-2xl">{activeLabel}</h1>
+              <h1 className="truncate text-lg font-bold text-slate-950 md:text-2xl">
+                {activeLabel}
+              </h1>
             </div>
 
             <div className="flex items-center gap-2">
@@ -273,13 +334,21 @@ function isNavBranch(item: NavEntry): item is NavBranch {
 }
 
 function getAllNavItems() {
-  return navGroups.flatMap((group) => group.items.flatMap((item) => (isNavBranch(item) ? item.children : [item])));
+  return navGroups.flatMap((group) =>
+    group.items.flatMap((item) => (isNavBranch(item) ? item.children : [item])),
+  );
 }
 
-function getActiveBranch(activePage: DealerPageKey, groups: Array<{ label: string; items: NavEntry[] }>) {
+function getActiveBranch(
+  activePage: DealerPageKey,
+  groups: Array<{ label: string; items: NavEntry[] }>,
+) {
   for (const group of groups) {
     for (const item of group.items) {
-      if (isNavBranch(item) && item.children.some((child) => child.key === activePage)) {
+      if (
+        isNavBranch(item) &&
+        item.children.some((child) => child.key === activePage)
+      ) {
         return item.label;
       }
     }
@@ -298,7 +367,9 @@ function filterNavGroups(allowedPages: ReadonlySet<DealerPageKey>) {
             return allowedPages.has(item.key) ? item : null;
           }
 
-          const children = item.children.filter((child) => allowedPages.has(child.key));
+          const children = item.children.filter((child) =>
+            allowedPages.has(child.key),
+          );
           return children.length > 0 ? { ...item, children } : null;
         })
         .filter((item): item is NavEntry => Boolean(item)),
@@ -306,7 +377,13 @@ function filterNavGroups(allowedPages: ReadonlySet<DealerPageKey>) {
     .filter((group) => group.items.length > 0);
 }
 
-function HeaderIcon({ label, children }: { label: string; children: React.ReactNode }) {
+function HeaderIcon({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <button
       className="flex size-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-950 shadow-sm shadow-slate-100 transition-colors hover:border-blue-100 hover:bg-blue-50 hover:text-[#1155ff]"

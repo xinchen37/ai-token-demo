@@ -29,12 +29,15 @@ interface RecordPageProps {
 export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete }: RecordPageProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [keyword, setKeyword] = React.useState("");
+  const [periodStart, setPeriodStart] = React.useState("");
+  const [periodEnd, setPeriodEnd] = React.useState("");
   const [editingRecord, setEditingRecord] = React.useState<BaseRecord | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<"cards" | "table">(config.entity === "products" ? "cards" : "table");
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = React.useState(false);
   const [hasContentOnRight, setHasContentOnRight] = React.useState(false);
   const isProductPage = config.entity === "products";
+  const isBillsPage = config.entity === "bills";
   const showActions = !config.readOnly;
   const canCreate = showActions && config.entity !== "models";
   const canDelete = showActions && config.entity !== "models";
@@ -52,14 +55,21 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
 
   const filteredRecords = React.useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
-    if (!normalized) {
-      return records;
+    const keywordMatchedRecords = normalized
+      ? records.filter((record) =>
+          Object.values(record).some((value) => String(value).toLowerCase().includes(normalized)),
+        )
+      : records;
+
+    if (!isBillsPage || (!periodStart && !periodEnd)) {
+      return keywordMatchedRecords;
     }
 
-    return records.filter((record) =>
-      Object.values(record).some((value) => String(value).toLowerCase().includes(normalized)),
-    );
-  }, [keyword, records]);
+    return keywordMatchedRecords.filter((record) => {
+      const period = String(getRecordValue(record, "period") ?? "");
+      return (!periodStart || period >= periodStart) && (!periodEnd || period <= periodEnd);
+    });
+  }, [isBillsPage, keyword, periodEnd, periodStart, records]);
 
   React.useLayoutEffect(() => {
     const container = scrollContainerRef.current;
@@ -104,6 +114,12 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
     setEditingRecord(null);
   }
 
+  function resetFilters() {
+    setKeyword("");
+    setPeriodStart("");
+    setPeriodEnd("");
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedDraft = normalizeDraft(resolvedFields, draft);
@@ -126,7 +142,13 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input className="pl-9 sm:w-72" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder={config.searchPlaceholder} />
             </div>
-            <Button variant="secondary" onClick={() => setKeyword("")}>
+            {isBillsPage ? (
+              <>
+                <DatePickerField className="h-9 rounded-md sm:w-40" mode="month" placeholder="开始账期" value={periodStart} onChange={setPeriodStart} />
+                <DatePickerField className="h-9 rounded-md sm:w-40" mode="month" placeholder="结束账期" value={periodEnd} onChange={setPeriodEnd} />
+              </>
+            ) : null}
+            <Button variant="secondary" onClick={resetFilters}>
               <RotateCcw className="size-4" />
               重置
             </Button>
@@ -644,16 +666,29 @@ function MultiSelectInput({ field, value, onChange }: { field: FieldConfig; valu
   );
 }
 
-function DatePickerField({ mode, placeholder, value, onChange }: { mode: "datetime" | "month"; placeholder: string; value: string; onChange: (value: string) => void }) {
+function DatePickerField({
+  mode,
+  placeholder,
+  value,
+  onChange,
+  className = "",
+}: {
+  mode: "datetime" | "month";
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
   const inputType = mode === "datetime" ? "datetime-local" : "month";
   const inputValue = mode === "datetime" ? toDateTimeInputValue(value) : value;
+  const shellClassName = className || "h-11 rounded-lg";
 
   function handleChange(nextValue: string) {
     onChange(mode === "datetime" ? fromDateTimeInputValue(nextValue) : nextValue);
   }
 
   return (
-    <label className="relative flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50/70 text-sm transition-colors focus-within:border-[#1155ff] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+    <label className={["relative flex items-center border border-slate-200 bg-slate-50/70 text-sm transition-colors focus-within:border-[#1155ff] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100", shellClassName].join(" ")}>
       <CalendarDays className="pointer-events-none absolute left-4 size-4 text-slate-400" />
       {!inputValue ? <span className="pointer-events-none absolute left-10 text-slate-400">{placeholder}</span> : null}
       <input
