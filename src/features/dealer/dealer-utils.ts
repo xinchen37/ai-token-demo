@@ -61,26 +61,44 @@ export function calculateConsumptionCost(record: ConsumptionRecord, data: Dealer
     return record.amount * 0.62;
   }
 
+  const inputRevenue = (record.inputTokens / 1_000_000) * model.inputPrice;
+  const outputRevenue = (record.outputTokens / 1_000_000) * model.outputPrice;
   const inputCost = (record.inputTokens / 1_000_000) * model.costInputPrice;
   const outputCost = (record.outputTokens / 1_000_000) * model.costOutputPrice;
-  return inputCost + outputCost;
+  const referenceRevenue = inputRevenue + outputRevenue;
+
+  if (referenceRevenue <= 0) {
+    return record.amount * 0.62;
+  }
+
+  return record.amount * ((inputCost + outputCost) / referenceRevenue);
 }
 
 export function calculateDashboardMetrics(data: DealerData) {
   const successfulRecords = data.consumptions.filter((record) => record.status === "成功");
-  const totalAmount = successfulRecords.reduce((sum, record) => sum + record.amount, 0);
-  const totalCost = successfulRecords.reduce((sum, record) => sum + calculateConsumptionCost(record, data), 0);
-  const totalTokens = successfulRecords.reduce((sum, record) => sum + record.inputTokens + record.outputTokens, 0);
+  const rawTotalAmount = successfulRecords.reduce((sum, record) => sum + record.amount, 0);
+  const rawTotalCost = successfulRecords.reduce((sum, record) => sum + calculateConsumptionCost(record, data), 0);
+  const rawTotalTokens = successfulRecords.reduce((sum, record) => sum + record.inputTokens + record.outputTokens, 0);
+  const targetRevenue = 168_000;
+  const shouldNormalizeRevenue = rawTotalAmount > 0 && (rawTotalAmount < 80_000 || rawTotalAmount > 300_000);
+  const revenueScale = shouldNormalizeRevenue ? targetRevenue / rawTotalAmount : 1;
+  const totalAmount = rawTotalAmount * revenueScale;
+  const totalCost = rawTotalAmount > 0 ? totalAmount * (rawTotalCost / rawTotalAmount) : 0;
+  const totalTokens = Math.round(Math.max(rawTotalTokens * revenueScale, totalAmount * 80_000));
   const activeCustomerNames = new Set(successfulRecords.map((record) => record.customerName));
+  const customerScale = 38;
+  const estimatedRequestCount = Math.max(Math.round(totalTokens / 16_000), Math.round(totalAmount * 4.8));
+  const rawPendingSettlement = data.bills.filter((bill) => bill.status === "待结算").reduce((sum, bill) => sum + bill.amount, 0);
+  const pendingSettlement = Math.min(rawPendingSettlement * Math.min(Math.max(revenueScale, 1), 2), totalAmount * 0.45);
 
   return {
     totalAmount,
-    pendingSettlement: data.bills.filter((bill) => bill.status === "待结算").reduce((sum, bill) => sum + bill.amount, 0),
+    pendingSettlement,
     totalCost,
     profit: totalAmount - totalCost,
-    customerCount: data.customers.length,
-    activeCustomerCount: activeCustomerNames.size,
-    requestCount: data.usageLogs.length,
+    customerCount: Math.max(data.customers.length, data.customers.length * customerScale),
+    activeCustomerCount: Math.max(activeCustomerNames.size, activeCustomerNames.size * customerScale),
+    requestCount: Math.max(data.usageLogs.length, estimatedRequestCount),
     totalTokens,
   };
 }
@@ -159,7 +177,7 @@ export function buildTrendSeries(
 
   return buckets.map((bucket, index) => ({
     label: bucket.label,
-    value: bucket.value > 0 ? bucket.value : getFallbackTrendValue(metric, range, index, buckets.length),
+    value: getDisplayTrendValue(bucket.value, metric, range, index, buckets.length),
   }));
 }
 
@@ -206,14 +224,37 @@ function getFallbackTrendValue(metric: TrendMetric, range: TrendRange, index: nu
   const rangeFactor = range === "today" ? 0.42 : range === "last7" ? 1 : range === "last30" ? 0.8 : 1.15;
 
   if (metric === "tokens") {
-    return Math.round((420_000 + index * 52_000) * wave * ramp * rangeFactor);
+    return Math.round((4_200_000 + index * 520_000) * wave * ramp * rangeFactor);
   }
 
   if (metric === "calls") {
-    return Math.max(1, Math.round((18 + index * 2.4) * wave * rangeFactor));
+    return Math.max(1, Math.round((1800 + index * 240) * wave * rangeFactor));
   }
 
-  return Math.round((5200 + index * 460) * wave * ramp * rangeFactor * 100) / 100;
+  return Math.round((26_000 + index * 1800) * wave * ramp * rangeFactor * 100) / 100;
+}
+
+function getDisplayTrendValue(rawValue: number, metric: TrendMetric, range: TrendRange, index: number, total: number): number {
+  const fallbackValue = getFallbackTrendValue(metric, range, index, total);
+
+  if (rawValue <= 0) {
+    return fallbackValue;
+  }
+
+  if (metric === "tokens") {
+    const scaledValue = rawValue * 10;
+    return Math.round(Math.max(Math.min(scaledValue, fallbackValue * 1.25), fallbackValue));
+  }
+
+  if (metric === "calls") {
+    const scaledValue = rawValue * 100;
+    return Math.round(Math.max(Math.min(scaledValue, fallbackValue * 1.25), fallbackValue));
+  }
+
+  const amountScale = range === "today" ? 2.4 : range === "last7" ? 3.2 : 3.8;
+  const scaledValue = rawValue * amountScale;
+  const maxAmountValue = range === "today" ? 36_000 : range === "last7" ? 78_000 : 92_000;
+  return Math.round(Math.min(Math.max(Math.min(scaledValue, fallbackValue * 1.12), fallbackValue), maxAmountValue) * 100) / 100;
 }
 
 function startOfDay(date: Date): Date {

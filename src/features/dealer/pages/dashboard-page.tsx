@@ -21,10 +21,15 @@ interface DashboardPageProps {
 export function DashboardPage({ data, onPageChange }: DashboardPageProps) {
   const [trendMetric, setTrendMetric] = React.useState<TrendMetric>("amount");
   const [trendRange, setTrendRange] = React.useState<TrendRange>("today");
-  const [rankMetric, setRankMetric] = React.useState<RankMetric>("model");
   const metrics = calculateDashboardMetrics(data);
-  const ranking = React.useMemo(() => buildRanking(data, rankMetric), [data, rankMetric]);
-  const maxRankAmount = Math.max(...ranking.map((item) => item.amount), 1);
+  const rankingGroups = React.useMemo(
+    () => [
+      { title: "模型消耗排行榜", metric: "model" as const, items: buildRanking(data, "model", 3) },
+      { title: "客户消耗排行", metric: "customer" as const, items: buildRanking(data, "customer", 3) },
+      { title: "销售业绩排行", metric: "sales" as const, items: buildRanking(data, "sales", 3) },
+    ],
+    [data],
+  );
   const trendSeries = React.useMemo(
     () => buildTrendSeries(data.consumptions, trendMetric, trendRange, new Date("2026-07-03T14:00:00+08:00")),
     [data.consumptions, trendMetric, trendRange],
@@ -57,9 +62,10 @@ export function DashboardPage({ data, onPageChange }: DashboardPageProps) {
 
           <div>
             <SectionTitle icon={Trophy} title="排行榜" />
-            <div className="mt-4 rounded-md border border-slate-200 bg-white px-6 py-5 shadow-sm shadow-slate-100">
-              <RankingTabs value={rankMetric} onChange={setRankMetric} />
-              <RankingBars items={ranking} maxAmount={maxRankAmount} metric={rankMetric} />
+            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+              {rankingGroups.map((group) => (
+                <RankingCard key={group.metric} title={group.title} items={group.items} metric={group.metric} />
+              ))}
             </div>
           </div>
         </div>
@@ -148,80 +154,65 @@ function Tabs({ items, compact = false }: { items: string[]; compact?: boolean }
   );
 }
 
-function RankingTabs({ value, onChange }: { value: RankMetric; onChange: (value: RankMetric) => void }) {
-  const items: Array<{ label: string; value: RankMetric }> = [
-    { label: "模型消耗", value: "model" },
-    { label: "客户消耗", value: "customer" },
-    { label: "销售人员消耗", value: "sales" },
-  ];
-
-  return (
-    <div className="flex gap-6">
-      {items.map((item) => (
-        <button
-          key={item.value}
-          className={`border-b-2 pb-2 text-sm font-medium transition-colors ${value === item.value ? "border-[#1155ff] text-[#1155ff]" : "border-transparent text-slate-400 hover:text-slate-600"}`}
-          onClick={() => onChange(item.value)}
-          type="button"
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function RankingBars({ items, maxAmount, metric }: { items: RankItem[]; maxAmount: number; metric: RankMetric }) {
+function RankingCard({ title, items, metric }: { title: string; items: RankItem[]; metric: RankMetric }) {
   const [hoveredItem, setHoveredItem] = React.useState<RankItem | null>(null);
-  const colors = ["bg-[#1155ff]", "bg-[#14c8e5]", "bg-[#f25be9]"];
-  const labelWidth = React.useMemo(() => {
-    const maxTextWidth = Math.max(...items.map((item) => estimateLabelWidth(item.name)), 48);
-    return Math.min(maxTextWidth, 220);
-  }, [items]);
+  const maxAmount = Math.max(...items.map((item) => item.amount), 1);
+  const colors = ["bg-teal-600", "bg-[#2f6df6]", "bg-orange-500"];
 
   return (
-    <div className="relative mt-5 space-y-3">
-      {items.map((item, index) => (
-        <div key={item.name} className="flex items-center gap-2.5 py-1 text-sm">
-          <span className="shrink-0 truncate text-left text-slate-500" style={{ width: labelWidth }}>{item.name}</span>
-          <div className="relative h-3 min-w-0 flex-1 border-l border-slate-200 bg-slate-50">
-            <div
-              className={`h-full cursor-pointer transition-opacity hover:opacity-85 ${index < 3 ? colors[index] : "bg-slate-300"}`}
-              style={{ width: `${(item.amount / maxAmount) * 100}%` }}
-              onMouseEnter={() => setHoveredItem(item)}
-              onMouseLeave={() => setHoveredItem(null)}
-            />
-            {hoveredItem?.name === item.name ? (
-              <div className="pointer-events-none absolute left-1/2 top-[-88px] z-20 w-[230px] -translate-x-1/2 rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
-                <div className="font-semibold text-slate-950">{item.name}</div>
-                <div className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-slate-500">
-                  <span>消耗金额</span>
-                  <span className="font-semibold text-slate-900">{formatCurrency(item.amount)}</span>
-                  <span>消耗 Token</span>
-                  <span className="font-semibold text-slate-900">{formatNumber(item.tokens)}</span>
-                  <span>调用次数</span>
-                  <span className="font-semibold text-slate-900">{formatNumber(item.count)}</span>
-                  {metric === "sales" ? (
-                    <>
-                      <span>名下客户数</span>
-                      <span className="font-semibold text-slate-900">{formatNumber(item.customerCount ?? 0)}</span>
-                      <span>人均消耗</span>
-                      <span className="font-semibold text-slate-900">{formatCurrency(item.averageAmount ?? 0)}</span>
-                    </>
-                  ) : null}
-                </div>
+    <div className="min-h-[300px] rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
+      <div className="border-b border-slate-100 px-6 py-5">
+        <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+      </div>
+      <div className="space-y-7 px-6 py-6">
+        {items.map((item, index) => (
+          <div key={item.name} className="relative" onMouseEnter={() => setHoveredItem(item)} onMouseLeave={() => setHoveredItem(null)}>
+            <div className="flex items-baseline justify-between gap-4">
+              <div className="min-w-0 text-base font-bold text-slate-800">
+                <span className="mr-1 tabular-nums">{index + 1}.</span>
+                <span className="truncate align-bottom">{item.name}</span>
               </div>
+              <div className="shrink-0 text-base font-bold tabular-nums text-slate-950">{formatCurrency(item.amount)}</div>
+            </div>
+            <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`h-full rounded-full transition-all ${colors[index] ?? "bg-slate-300"}`}
+                style={{ width: `${Math.max((item.amount / maxAmount) * 100, 8)}%` }}
+              />
+            </div>
+            <div className="mt-2 truncate text-sm font-medium text-slate-400">{getRankingMeta(item, metric)}</div>
+            {hoveredItem?.name === item.name ? (
+              <RankingTooltip item={item} metric={metric} />
             ) : null}
           </div>
-          <span className="w-28 shrink-0 text-right font-medium text-slate-700">{formatCurrency(item.amount)}</span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
-function estimateLabelWidth(label: string) {
-  return Array.from(label).reduce((total, char) => total + (/[\u4e00-\u9fff]/.test(char) ? 16 : 8), 12);
+function RankingTooltip({ item, metric }: { item: RankItem; metric: RankMetric }) {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[-118px] z-20 w-[230px] -translate-x-1/2 rounded-md border border-slate-100 bg-white p-3 text-sm text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.12)]">
+      <div className="space-y-1 font-semibold">
+        <div><span className="text-slate-400">{metric === "sales" ? "销售姓名" : "名称"}：</span><span className="text-slate-950">{item.name}</span></div>
+        <div><span className="text-slate-400">消耗金额：</span><span className="text-slate-950">{formatCurrency(item.amount)}</span></div>
+        {metric === "sales" ? <div><span className="text-slate-400">名下客户数：</span><span className="text-slate-950">{formatNumber(item.customerCount ?? 0)}</span></div> : null}
+        {metric === "sales" ? <div><span className="text-slate-400">人均消耗：</span><span className="text-slate-950">{formatCurrency(item.averageAmount ?? 0)}</span></div> : null}
+        {metric !== "sales" ? <div><span className="text-slate-400">消耗 Tokens：</span><span className="text-slate-950">{formatNumber(item.tokens)}</span></div> : null}
+        <div><span className="text-slate-400">调用次数：</span><span className="text-slate-950">{formatNumber(item.count)}</span></div>
+      </div>
+      <span className="absolute -bottom-2 left-1/2 size-4 -translate-x-1/2 rotate-45 border-b border-r border-slate-100 bg-white" />
+    </div>
+  );
+}
+
+function getRankingMeta(item: RankItem, metric: RankMetric) {
+  if (metric === "sales") {
+    return `${formatNumber(item.customerCount ?? 0)} 个客户 · 人均 ${formatCurrency(item.averageAmount ?? 0)}`;
+  }
+
+  return `${formatNumber(item.tokens)} Tokens`;
 }
 
 function MetricTabs({ value, onChange }: { value: TrendMetric; onChange: (value: TrendMetric) => void }) {

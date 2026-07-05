@@ -110,6 +110,8 @@ function completeLinkedDraft(
     return {
       ...draft,
       relatedModels: draft.relatedModels || data.models[0]?.name || "",
+      tokenLimitM: draft.tokenLimitM || "不限",
+      monthlyTokenM: draft.monthlyTokenM || "不限",
     };
   }
 

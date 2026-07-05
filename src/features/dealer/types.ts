@@ -58,6 +58,9 @@ export interface ModelProduct extends BaseRecord {
   outputPrice: number;
   cachePrice: number;
   tokenLimitM: string;
+  monthlyTokenM?: string;
+  monthlyFee?: number;
+  discount?: number;
   billingMode: "按量" | "套餐";
   status: "上架" | "下架";
 }

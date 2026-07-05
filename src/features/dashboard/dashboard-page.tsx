@@ -34,7 +34,6 @@ const ranking = [
 export function DashboardPage({ tasks }: DashboardPageProps) {
   const stats = calculateTaskStats(tasks, new Date("2026-07-02T12:00:00+08:00"));
   const activeTasks = tasks.filter((task) => task.status !== "done").slice(0, 2);
-  const activeCustomers = Math.max(800, stats.inProgress * 260 + stats.todo * 140);
 
   return (
     <div className="space-y-8">
@@ -45,33 +44,33 @@ export function DashboardPage({ tasks }: DashboardPageProps) {
             icon={Wallet}
             tone="cyan"
             label="消费总额"
-            value="¥12000.00"
+            value="¥168,000.00"
             helperLabel="待结算金额"
-            helperValue={`¥${Math.max(1000, stats.todo * 500)}.00`}
+            helperValue="¥75,600.00"
           />
           <MetricCard
             icon={Coins}
             tone="pink"
             label="总成本"
-            value="¥20000.00"
+            value="¥101,155.25"
             helperLabel="净利润"
-            helperValue="¥18000.00"
+            helperValue="¥66,844.75"
           />
           <MetricCard
             icon={Users}
             tone="blue"
             label="客户总数"
-            value={Math.max(1000, tasks.length * 200)}
+            value="1,280"
             helperLabel="活跃客户数"
-            helperValue={activeCustomers}
+            helperValue="846"
           />
           <MetricCard
             icon={Zap}
             tone="indigo"
             label="请求次数"
-            value={Math.max(12000, stats.total * 2400)}
-            helperLabel="消耗Tokens"
-            helperValue="200000M"
+            value="806,400"
+            helperLabel="消耗 Tokens"
+            helperValue="13,440M"
           />
         </div>
       </section>

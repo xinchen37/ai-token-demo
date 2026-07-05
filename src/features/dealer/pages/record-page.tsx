@@ -1,10 +1,20 @@
 import * as React from "react";
-import { CalendarDays, Check, ChevronDown, Edit3, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Bot, CalendarDays, Check, ChevronDown, Download, Edit3, Eye, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { BaseRecord, ColumnConfig, DealerData, EntityKey, FieldConfig } from "../types";
 import { formatCurrency } from "../dealer-utils";
+
+const modelLogoModules = import.meta.glob("../../../images/modelsLogo/*", {
+  eager: true,
+  import: "default",
+  query: "?url",
+}) as Record<string, string>;
+
+const modelLogoUrls = Object.fromEntries(
+  Object.entries(modelLogoModules).map(([path, url]) => [path.split("/").pop()?.replace(/\.[^.]+$/, "").toUpperCase() ?? "", url]),
+);
 
 export interface RecordPageConfig {
   entity: EntityKey;
@@ -30,14 +40,21 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [keywordDraft, setKeywordDraft] = React.useState("");
   const [keyword, setKeyword] = React.useState("");
+  const [providerFilter, setProviderFilter] = React.useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = React.useState<string[]>([]);
+  const [billingFilter, setBillingFilter] = React.useState<string[]>([]);
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
   const [editingRecord, setEditingRecord] = React.useState<BaseRecord | null>(null);
+  const [detailRecord, setDetailRecord] = React.useState<BaseRecord | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
-  const [viewMode, setViewMode] = React.useState<"cards" | "table">(config.entity === "products" ? "cards" : "table");
+  const [viewMode, setViewMode] = React.useState<"cards" | "table">(config.entity === "models" || config.entity === "products" ? "cards" : "table");
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = React.useState(false);
   const [hasContentOnRight, setHasContentOnRight] = React.useState(false);
   const isProductPage = config.entity === "products";
+  const isModelPage = config.entity === "models";
+  const supportsCardView = isModelPage || isProductPage;
+  const supportsDetailView = isModelPage || isProductPage;
   const isBillsPage = config.entity === "bills";
   const showActions = !config.readOnly;
   const canCreate = showActions && config.entity !== "models";
@@ -45,13 +62,18 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   const resolvedFields = React.useMemo(() => resolveFields(config.fields, data), [config.fields, data]);
   const emptyDraft = React.useMemo(() => buildEmptyDraft(resolvedFields), [resolvedFields]);
   const [draft, setDraft] = React.useState<Record<string, string | number>>(emptyDraft);
+  const visibleFields = React.useMemo(() => resolveVisibleFields(config.entity, resolvedFields, draft), [config.entity, draft, resolvedFields]);
+  const tableColumns = React.useMemo(
+    () => (isModelPage ? config.columns.filter((column) => column.key !== "logoText") : config.columns),
+    [config.columns, isModelPage],
+  );
 
   React.useEffect(() => {
     setDraft(editingRecord ? recordToDraft(editingRecord, resolvedFields) : emptyDraft);
   }, [editingRecord, emptyDraft, resolvedFields]);
 
   React.useEffect(() => {
-    setViewMode(config.entity === "products" ? "cards" : "table");
+    setViewMode(config.entity === "models" || config.entity === "products" ? "cards" : "table");
   }, [config.entity]);
 
   const filteredRecords = React.useMemo(() => {
@@ -62,15 +84,23 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
         )
       : records;
 
+    const modelFilteredRecords = isModelPage
+      ? keywordMatchedRecords.filter((record) =>
+          matchesFilter(record, "provider", providerFilter)
+          && matchesFilter(record, "type", typeFilter)
+          && matchesFilter(record, "billingType", billingFilter),
+        )
+      : keywordMatchedRecords;
+
     if (!isBillsPage || (!periodStart && !periodEnd)) {
-      return keywordMatchedRecords;
+      return modelFilteredRecords;
     }
 
-    return keywordMatchedRecords.filter((record) => {
+    return modelFilteredRecords.filter((record) => {
       const period = String(getRecordValue(record, "period") ?? "");
       return (!periodStart || period >= periodStart) && (!periodEnd || period <= periodEnd);
     });
-  }, [isBillsPage, keyword, periodEnd, periodStart, records]);
+  }, [billingFilter, isBillsPage, isModelPage, keyword, periodEnd, periodStart, providerFilter, records, typeFilter]);
 
   React.useLayoutEffect(() => {
     const container = scrollContainerRef.current;
@@ -97,7 +127,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
       resizeObserver.disconnect();
       container.removeEventListener("scroll", updateScrollState);
     };
-  }, [config.columns, filteredRecords.length, viewMode]);
+  }, [filteredRecords.length, tableColumns, viewMode]);
 
   function openCreateForm() {
     setEditingRecord(null);
@@ -110,6 +140,10 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
     setIsFormOpen(true);
   }
 
+  function openDetail(record: BaseRecord) {
+    setDetailRecord(record);
+  }
+
   function closeForm() {
     setIsFormOpen(false);
     setEditingRecord(null);
@@ -118,8 +152,23 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   function resetFilters() {
     setKeywordDraft("");
     setKeyword("");
+    setProviderFilter([]);
+    setTypeFilter([]);
+    setBillingFilter([]);
     setPeriodStart("");
     setPeriodEnd("");
+  }
+
+  function exportRecords() {
+    const rows = [config.columns.map((column) => column.label), ...filteredRecords.map((record) => config.columns.map((column) => String(getRecordValue(record, column.key) ?? "")))];
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${config.title}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -138,9 +187,9 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
   return (
     <div className="space-y-5">
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="relative">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[260px] flex-1 sm:flex-none">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input
                 className="pl-9 sm:w-72"
@@ -156,24 +205,37 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                 placeholder={config.searchPlaceholder}
               />
             </div>
+            {isModelPage ? (
+              <>
+                <FilterMultiSelect label="供应商" options={unique(records.map((record) => String(getRecordValue(record, "provider") ?? "")).filter(Boolean))} value={providerFilter} onChange={setProviderFilter} />
+                <FilterMultiSelect label="模型类型" options={["对话补全", "图像", "文本转语音", "语音转文本", "视频"]} value={typeFilter} onChange={setTypeFilter} />
+                <FilterMultiSelect label="计费类型" options={["按量计费", "按次计费"]} value={billingFilter} onChange={setBillingFilter} />
+              </>
+            ) : null}
             {isBillsPage ? (
               <>
                 <DatePickerField className="h-9 rounded-md sm:w-40" mode="month" placeholder="开始账期" value={periodStart} onChange={setPeriodStart} />
                 <DatePickerField className="h-9 rounded-md sm:w-40" mode="month" placeholder="结束账期" value={periodEnd} onChange={setPeriodEnd} />
               </>
             ) : null}
-            <Button variant="secondary" onClick={resetFilters}>
+            {isModelPage ? (
+              <Button className="whitespace-nowrap" variant="secondary" onClick={exportRecords}>
+                <Download className="size-4" />
+                导出
+              </Button>
+            ) : null}
+            <Button className="whitespace-nowrap" variant="secondary" onClick={resetFilters}>
               <RotateCcw className="size-4" />
               重置
             </Button>
             {canCreate ? (
-              <Button variant="primary" onClick={openCreateForm}>
+              <Button className="whitespace-nowrap" variant="primary" onClick={openCreateForm}>
                 <Plus className="size-4" />
                 {config.createLabel}
               </Button>
             ) : null}
           </div>
-          {isProductPage ? <ViewModeToggle value={viewMode} onChange={setViewMode} /> : null}
+          {supportsCardView ? <ViewModeToggle value={viewMode} onChange={setViewMode} /> : null}
         </div>
       </section>
 
@@ -203,7 +265,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
 
               <div className="overflow-y-auto px-7 py-6">
                 <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
-                  {resolvedFields.map((field) => (
+                  {visibleFields.map((field) => (
                     <label key={String(field.key)} className={field.kind === "textarea" || field.kind === "permissionMatrix" ? "space-y-2 md:col-span-2" : "space-y-2"}>
                       <span className="block text-sm font-semibold text-slate-700">
                         {field.label}
@@ -228,19 +290,35 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
         </div>
       ) : null}
 
-      {isProductPage && viewMode === "cards" ? (
-        <ProductCardGrid records={filteredRecords} canDelete={canDelete} onEdit={openEditForm} onDelete={onDelete} />
+      {isModelPage && detailRecord ? (
+        <ModelDetailDialog record={detailRecord} onClose={() => setDetailRecord(null)} onEdit={(record) => {
+          setDetailRecord(null);
+          openEditForm(record);
+        }} />
+      ) : null}
+
+      {isProductPage && detailRecord ? (
+        <ProductDetailDialog record={detailRecord} onClose={() => setDetailRecord(null)} onEdit={(record) => {
+          setDetailRecord(null);
+          openEditForm(record);
+        }} />
+      ) : null}
+
+      {isModelPage && viewMode === "cards" ? (
+        <ModelCardGrid records={filteredRecords} onDetail={openDetail} onEdit={openEditForm} />
+      ) : isProductPage && viewMode === "cards" ? (
+        <ProductCardGrid records={filteredRecords} canDelete={canDelete} onDetail={openDetail} onEdit={openEditForm} onDelete={onDelete} />
       ) : (
       <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
         <div ref={scrollContainerRef} className="max-h-[calc(100vh-340px)] overflow-auto">
           <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
               <tr>
-                {config.columns.map((column) => (
+                {tableColumns.map((column) => (
                   <th
                     key={String(column.key)}
                     className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium"
-                    style={{ minWidth: column.width ?? 150 }}
+                    style={{ minWidth: isModelPage && column.key === "name" ? 240 : column.width ?? 150 }}
                   >
                     {column.label}
                   </th>
@@ -267,19 +345,21 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td className="h-24 px-4 text-center text-slate-500" colSpan={config.columns.length + (showActions ? 1 : 0)}>
+                  <td className="h-24 px-4 text-center text-slate-500" colSpan={tableColumns.length + (showActions ? 1 : 0)}>
                     暂无匹配数据
                   </td>
                 </tr>
               ) : null}
               {filteredRecords.map((record) => (
                 <tr key={record.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70">
-                  {config.columns.map((column) => (
+                  {tableColumns.map((column) => (
                     <td
                       key={String(column.key)}
                       className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 align-middle text-slate-700"
                     >
-                      {column.format ? column.format(getRecordValue(record, column.key), record) : formatCell(getRecordValue(record, column.key))}
+                      {isModelPage && column.key === "name" ? (
+                        <ModelNameWithLogo record={record} logoSize="sm" />
+                      ) : column.format ? column.format(getRecordValue(record, column.key), record) : formatCell(getRecordValue(record, column.key))}
                     </td>
                   ))}
                   {showActions ? (
@@ -297,6 +377,12 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
                       ].join(" ")}
                     >
                       <div className="flex justify-end gap-1">
+                        {supportsDetailView ? (
+                          <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => openDetail(record)}>
+                            <Eye className="size-4" />
+                            详情
+                          </Button>
+                        ) : null}
                         <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => openEditForm(record)}>
                           <Edit3 className="size-4" />
                           编辑
@@ -352,7 +438,159 @@ function ViewModeToggle({ value, onChange }: { value: "cards" | "table"; onChang
   );
 }
 
-function ProductCardGrid({ records, canDelete, onEdit, onDelete }: { records: BaseRecord[]; canDelete: boolean; onEdit: (record: BaseRecord) => void; onDelete: (id: string) => void }) {
+function ModelLogo({ record, size }: { record: BaseRecord; size: "sm" | "md" | "lg" }) {
+  const provider = String(getRecordValue(record, "provider") ?? "");
+  const logoText = String(getRecordValue(record, "logoText") ?? provider.slice(0, 2).toUpperCase()).toUpperCase();
+  const logoUrl = modelLogoUrls[logoText];
+  const sizeClass = size === "sm" ? "size-8 rounded" : size === "lg" ? "size-14 rounded-lg" : "size-11 rounded-md";
+  const imagePaddingClass = size === "sm" ? "p-1.5" : "p-2";
+
+  return (
+    <div className={`flex ${sizeClass} shrink-0 items-center justify-center border border-blue-100 bg-blue-50 text-sm font-bold text-[#1155ff]`}>
+      {logoUrl ? (
+        <img alt={`${provider || logoText} Logo`} className={`h-full w-full object-contain ${imagePaddingClass}`} src={logoUrl} />
+      ) : logoText ? (
+        logoText
+      ) : (
+        <Bot className="size-5" />
+      )}
+    </div>
+  );
+}
+
+function ModelNameWithLogo({ record, logoSize }: { record: BaseRecord; logoSize: "sm" | "md" | "lg" }) {
+  const name = String(getRecordValue(record, "name") ?? "-");
+
+  return (
+    <div className="flex items-center gap-3">
+      <ModelLogo record={record} size={logoSize} />
+      <span className="font-medium text-slate-800">{name}</span>
+    </div>
+  );
+}
+
+function ModelCardGrid({ records, onDetail, onEdit }: { records: BaseRecord[]; onDetail: (record: BaseRecord) => void; onEdit: (record: BaseRecord) => void }) {
+  if (records.length === 0) {
+    return (
+      <section className="rounded-md border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm shadow-slate-100">
+        暂无匹配数据
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      {records.map((record) => {
+        const provider = String(getRecordValue(record, "provider") ?? "-");
+        const name = String(getRecordValue(record, "name") ?? "-");
+        const type = String(getRecordValue(record, "type") ?? "-");
+        const billingType = String(getRecordValue(record, "billingType") ?? "-");
+        const abilities = String(getRecordValue(record, "abilities") ?? "");
+        const status = String(getRecordValue(record, "status") ?? "-");
+        const isAvailable = status === "可用";
+        const abilityTags = abilities.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 4);
+
+        return (
+          <article key={record.id} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100 transition hover:border-blue-100 hover:shadow-md hover:shadow-slate-100">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <ModelLogo record={record} size="md" />
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold text-slate-950">{name}</h3>
+                  <p className="mt-1 truncate text-sm text-slate-500">{provider} · {type}</p>
+                </div>
+              </div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${isAvailable ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+                {status}
+              </span>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+              <ModelPrice label="输入价格" value={`${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M`} />
+              <ModelPrice label="输出价格" value={`${formatCurrency(Number(getRecordValue(record, "outputPrice") ?? 0))}/1M`} />
+              <ModelPrice label="缓存价格" value={`${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M`} />
+              <ModelPrice label="计费类型" value={billingType} />
+              <ModelPrice label="成本输入" value={`${formatCurrency(Number(getRecordValue(record, "costInputPrice") ?? 0))}/1M`} muted />
+              <ModelPrice label="成本输出" value={`${formatCurrency(Number(getRecordValue(record, "costOutputPrice") ?? 0))}/1M`} muted />
+            </div>
+
+            <div className="mt-5 flex min-h-8 flex-wrap gap-2">
+              {abilityTags.length > 0 ? abilityTags.map((tag) => (
+                <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">{tag}</span>
+              )) : <span className="text-sm text-slate-400">暂无能力标签</span>}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(record)}>
+                <Eye className="size-4" />
+                详情
+              </Button>
+              <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => onEdit(record)}>
+                <Edit3 className="size-4" />
+                编辑
+              </Button>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function ModelDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; onClose: () => void; onEdit: (record: BaseRecord) => void }) {
+  const provider = String(getRecordValue(record, "provider") ?? "-");
+  const name = String(getRecordValue(record, "name") ?? "-");
+  const type = String(getRecordValue(record, "type") ?? "-");
+  const billingType = String(getRecordValue(record, "billingType") ?? "-");
+  const abilities = String(getRecordValue(record, "abilities") ?? "-");
+  const status = String(getRecordValue(record, "status") ?? "-");
+  const fields = [
+    { label: "厂商", value: provider },
+    { label: "模型名称", value: <ModelNameWithLogo record={record} logoSize="sm" /> },
+    { label: "模型类型", value: type },
+    { label: "输入价格", value: `${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M Tokens` },
+    { label: "输出价格", value: `${formatCurrency(Number(getRecordValue(record, "outputPrice") ?? 0))}/1M Tokens` },
+    { label: "缓存价格", value: `${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M Tokens` },
+    { label: "成本输入价", value: `${formatCurrency(Number(getRecordValue(record, "costInputPrice") ?? 0))}/1M Tokens` },
+    { label: "成本输出价", value: `${formatCurrency(Number(getRecordValue(record, "costOutputPrice") ?? 0))}/1M Tokens` },
+    { label: "计费类型", value: billingType },
+    { label: "模型能力", value: abilities },
+    { label: "状态", value: status },
+    { label: "创建时间", value: record.createdAt },
+    { label: "最后修改时间", value: record.updatedAt },
+  ];
+
+  return (
+    <DetailDialogShell title="模型详情" subtitle={name} onClose={onClose} onEdit={() => onEdit(record)}>
+      {fields.map((field) => (
+        <DetailField key={field.label} label={field.label} value={field.value} />
+      ))}
+    </DetailDialogShell>
+  );
+}
+
+function ModelPrice({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className={`mt-1 truncate text-sm font-semibold ${muted ? "text-slate-500" : "text-slate-950"}`}>{value}</div>
+    </div>
+  );
+}
+
+function ProductCardGrid({
+  records,
+  canDelete,
+  onDetail,
+  onEdit,
+  onDelete,
+}: {
+  records: BaseRecord[];
+  canDelete: boolean;
+  onDetail: (record: BaseRecord) => void;
+  onEdit: (record: BaseRecord) => void;
+  onDelete: (id: string) => void;
+}) {
   if (records.length === 0) {
     return (
       <section className="rounded-md border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm shadow-slate-100">
@@ -367,7 +605,10 @@ function ProductCardGrid({ records, canDelete, onEdit, onDelete }: { records: Ba
         const name = String(getRecordValue(record, "name") ?? "-");
         const packageMode = String(getRecordValue(record, "packageMode") ?? "-");
         const relatedModels = String(getRecordValue(record, "relatedModels") ?? "-");
-        const tokenLimitM = String(getRecordValue(record, "tokenLimitM") ?? "-");
+        const tokenLimitM = String(getRecordValue(record, "tokenLimitM") || "不限");
+        const monthlyTokenM = String(getRecordValue(record, "monthlyTokenM") || "不限");
+        const monthlyFee = Number(getRecordValue(record, "monthlyFee") ?? 0);
+        const discount = Number(getRecordValue(record, "discount") ?? 0);
         const billingMode = String(getRecordValue(record, "billingMode") ?? "-");
         const status = String(getRecordValue(record, "status") ?? "-");
         const isActive = status === "上架";
@@ -385,14 +626,24 @@ function ProductCardGrid({ records, canDelete, onEdit, onDelete }: { records: Ba
             </div>
 
             <div className="mt-5 space-y-3 text-sm">
+              <ProductMeta label="产品ID" value={record.id} />
               <ProductMeta label="关联模型" value={relatedModels} />
+              <ProductMeta label="输入价格" value={`${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M`} />
+              <ProductMeta label="输出价格" value={`${formatCurrency(Number(getRecordValue(record, "outputPrice") ?? 0))}/1M`} />
+              <ProductMeta label="缓存价格" value={`${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M`} />
               <ProductMeta label="Tokens(M)" value={tokenLimitM} />
-              <ProductMeta label="输入价格" value={formatCell(getRecordValue(record, "inputPrice"))} />
-              <ProductMeta label="输出价格" value={formatCell(getRecordValue(record, "outputPrice"))} />
-              <ProductMeta label="缓存价格" value={formatCell(getRecordValue(record, "cachePrice"))} />
+              {packageMode === "按量包月" ? <ProductMeta label="每月总 Token" value={monthlyTokenM} /> : null}
+              {packageMode === "按量包月" || packageMode === "按金额包月" ? <ProductMeta label="每月总费用" value={formatCurrency(monthlyFee)} /> : null}
+              {packageMode === "不限时按量" ? <ProductMeta label="折扣" value={formatDiscount(discount)} /> : null}
+              <ProductMeta label="创建时间" value={record.createdAt} />
+              <ProductMeta label="最近更新" value={record.updatedAt} />
             </div>
 
             <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(record)}>
+                <Eye className="size-4" />
+                详情
+              </Button>
               <Button className="px-2 text-[#1155ff] hover:bg-blue-50 hover:text-[#0648f4]" variant="ghost" onClick={() => onEdit(record)}>
                 <Edit3 className="size-4" />
                 编辑
@@ -411,6 +662,92 @@ function ProductCardGrid({ records, canDelete, onEdit, onDelete }: { records: Ba
   );
 }
 
+function ProductDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; onClose: () => void; onEdit: (record: BaseRecord) => void }) {
+  const name = String(getRecordValue(record, "name") ?? "-");
+  const packageMode = String(getRecordValue(record, "packageMode") ?? "-");
+  const relatedModels = String(getRecordValue(record, "relatedModels") ?? "-");
+  const tokenLimitM = String(getRecordValue(record, "tokenLimitM") || "不限");
+  const monthlyTokenM = String(getRecordValue(record, "monthlyTokenM") || "不限");
+  const monthlyFee = Number(getRecordValue(record, "monthlyFee") ?? 0);
+  const discount = Number(getRecordValue(record, "discount") ?? 0);
+  const billingMode = String(getRecordValue(record, "billingMode") ?? "-");
+  const status = String(getRecordValue(record, "status") ?? "-");
+  const fields = [
+    { label: "产品ID", value: record.id },
+    { label: "产品名称", value: name },
+    { label: "套餐模式", value: packageMode },
+    { label: "关联模型", value: relatedModels },
+    { label: "输入价格", value: `${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M Tokens` },
+    { label: "输出价格", value: `${formatCurrency(Number(getRecordValue(record, "outputPrice") ?? 0))}/1M Tokens` },
+    { label: "缓存价格", value: `${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M Tokens` },
+    { label: "Tokens（M）", value: tokenLimitM },
+    ...(packageMode === "按量包月" ? [{ label: "每月总 Token 数量", value: monthlyTokenM }] : []),
+    ...(packageMode === "按量包月" || packageMode === "按金额包月" ? [{ label: "每月总费用", value: formatCurrency(monthlyFee) }] : []),
+    ...(packageMode === "不限时按量" ? [{ label: "折扣", value: formatDiscount(discount) }] : []),
+    { label: "计费模式", value: billingMode },
+    { label: "状态", value: status },
+    { label: "创建时间", value: record.createdAt },
+    { label: "最近更新时间", value: record.updatedAt },
+  ];
+
+  return (
+    <DetailDialogShell title="产品详情" subtitle={name} onClose={onClose} onEdit={() => onEdit(record)}>
+      {fields.map((field) => (
+        <DetailField key={field.label} label={field.label} value={field.value} />
+      ))}
+    </DetailDialogShell>
+  );
+}
+
+function DetailDialogShell({ title, subtitle, children, onClose, onEdit }: { title: string; subtitle: string; children: React.ReactNode; onClose: () => void; onEdit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm" role="presentation" onMouseDown={onClose}>
+      <section
+        aria-modal="true"
+        className="max-h-[calc(100vh-64px)] w-full max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-6 border-b border-slate-100 px-7 py-6">
+          <div>
+            <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
+            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+          </div>
+          <button
+            aria-label="关闭弹窗"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="max-h-[calc(100vh-240px)] overflow-y-auto px-7 py-6">
+          <div className="grid gap-4 md:grid-cols-2">{children}</div>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-7 py-5">
+          <Button className="h-10 px-5" type="button" variant="secondary" onClick={onClose}>
+            关闭
+          </Button>
+          <Button className="h-10 px-6" type="button" variant="primary" onClick={onEdit}>
+            <Edit3 className="size-4" />
+            编辑
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
+      <div className="text-xs font-medium text-slate-400">{label}</div>
+      <div className="mt-1 break-words text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
 function ProductMeta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -421,6 +758,10 @@ function ProductMeta({ label, value }: { label: string; value: React.ReactNode }
 }
 
 function FieldInput({ field, value, onChange }: { field: FieldConfig; value: string | number; onChange: (value: string | number) => void }) {
+  if (field.key === "abilities") {
+    return <TagInput value={String(value)} onChange={onChange} placeholder="输入标签名称" />;
+  }
+
   if (field.kind === "select") {
     return (
       <Select
@@ -478,6 +819,109 @@ function FieldInput({ field, value, onChange }: { field: FieldConfig; value: str
       placeholder={field.placeholder}
       required={field.required}
     />
+  );
+}
+
+function FilterMultiSelect({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (value: string[]) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const display = value.length === 0 ? label : `${label}(${value.length})`;
+
+  React.useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  function toggleOption(option: string) {
+    onChange(value.includes(option) ? value.filter((item) => item !== option) : [...value, option]);
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        aria-expanded={open}
+        className="flex h-9 min-w-36 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:border-slate-300"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className={value.length === 0 ? "text-slate-400" : "text-slate-700"}>{display}</span>
+        <ChevronDown className={`size-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-10 z-40 min-w-44 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/70">
+          {options.map((option) => {
+            const checked = value.includes(option);
+            return (
+              <button
+                key={option}
+                className={`flex h-9 w-full items-center gap-2 rounded px-2.5 text-left text-sm transition ${checked ? "bg-blue-50 text-[#1155ff]" : "text-slate-600 hover:bg-slate-50"}`}
+                onClick={() => toggleOption(option)}
+                type="button"
+              >
+                <span className={`flex size-4 items-center justify-center rounded border ${checked ? "border-[#1155ff] bg-[#1155ff] text-white" : "border-slate-300"}`}>
+                  {checked ? <Check className="size-3" /> : null}
+                </span>
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TagInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  const [draft, setDraft] = React.useState("");
+  const tags = value.split(",").map((item) => item.trim()).filter(Boolean);
+
+  function commitTags(nextTags: string[]) {
+    onChange([...new Set(nextTags)].join(","));
+  }
+
+  function addTag() {
+    const nextTag = draft.trim();
+    if (!nextTag) return;
+    commitTags([...tags, nextTag]);
+    setDraft("");
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 transition focus-within:border-[#1155ff] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+      <div className="flex min-h-8 flex-wrap gap-2">
+        {tags.length === 0 ? <span className="text-sm text-slate-400">暂无标签</span> : null}
+        {tags.map((tag) => (
+          <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-sm font-medium text-[#1155ff]">
+            {tag}
+            <button className="text-blue-300 hover:text-[#1155ff]" onClick={() => commitTags(tags.filter((item) => item !== tag))} type="button">
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Input
+          className="h-9 flex-1 rounded-md bg-white px-3 focus:border-[#1155ff] focus:ring-blue-100"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addTag();
+            }
+          }}
+          placeholder={placeholder}
+        />
+        <Button className="h-9" type="button" variant="secondary" onClick={addTag}>
+          <Plus className="size-4" />
+          添加
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -730,9 +1174,52 @@ function fromDateTimeInputValue(value: string) {
 
 function buildEmptyDraft(fields: FieldConfig[]): Record<string, string | number> {
   return fields.reduce<Record<string, string | number>>((draft, field) => {
-    draft[String(field.key)] = field.kind === "number" ? 0 : field.kind === "permissionMatrix" ? "[]" : field.options?.[0] ?? "";
+    const key = String(field.key);
+    draft[key] = key === "tokenLimitM" || key === "monthlyTokenM" ? "不限" : field.kind === "number" ? 0 : field.kind === "permissionMatrix" ? "[]" : field.options?.[0] ?? "";
     return draft;
   }, {});
+}
+
+function resolveVisibleFields(entity: EntityKey, fields: FieldConfig[], draft: Record<string, string | number>) {
+  if (entity !== "products") {
+    return fields;
+  }
+
+  const packageMode = String(draft.packageMode || "按量包月");
+  const visibleKeys = new Set([
+    "name",
+    "packageMode",
+    "relatedModels",
+    "inputPrice",
+    "outputPrice",
+    "cachePrice",
+    "tokenLimitM",
+    "billingMode",
+    "status",
+  ]);
+
+  if (packageMode === "按量包月") {
+    visibleKeys.add("monthlyTokenM");
+    visibleKeys.add("monthlyFee");
+  }
+
+  if (packageMode === "按金额包月") {
+    visibleKeys.add("monthlyFee");
+  }
+
+  if (packageMode === "不限时按量") {
+    visibleKeys.add("discount");
+  }
+
+  return fields.filter((field) => visibleKeys.has(String(field.key)));
+}
+
+function formatDiscount(value: number) {
+  if (!value) {
+    return "-";
+  }
+
+  return `${value <= 1 ? Number((value * 10).toFixed(2)) : value} 折`;
 }
 
 function recordToDraft(record: BaseRecord, fields: FieldConfig[]): Record<string, string | number> {
@@ -793,6 +1280,14 @@ function resolveOptions(source: NonNullable<FieldConfig["optionSource"]>, data: 
 
 function unique(values: string[]) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function matchesFilter(record: BaseRecord, key: string, values: string[]) {
+  if (values.length === 0) {
+    return true;
+  }
+
+  return values.includes(String(getRecordValue(record, key) ?? ""));
 }
 
 function formatCell(value: unknown): React.ReactNode {
