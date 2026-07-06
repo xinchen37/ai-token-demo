@@ -25,6 +25,7 @@ import {
   List,
   LogOut,
   Menu,
+  Package,
   Plus,
   ReceiptText,
   RotateCcw,
@@ -33,6 +34,7 @@ import {
   SendHorizontal,
   Settings2,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
   Trophy,
   UserRound,
@@ -59,11 +61,13 @@ import type {
   Bill,
   AiModel,
   ConsumptionRecord,
+  Contract,
   Customer,
   CustomerApiKey,
   DealerData,
   EnterpriseMember,
   EnterpriseRole,
+  ModelProduct,
 } from "@/features/dealer/types";
 
 const modelLogoModules = import.meta.glob("../../images/modelsLogo/*", {
@@ -82,6 +86,7 @@ const modelLogoUrls = Object.fromEntries(
 type EnterprisePageKey =
   | "dashboard"
   | "models"
+  | "products"
   | "trial"
   | "apiKeys"
   | "consumptions"
@@ -119,6 +124,7 @@ type EnterprisePermissionModule = {
 const routes: Record<EnterprisePageKey, string> = {
   dashboard: "/enterprise/dashboard",
   models: "/enterprise/models",
+  products: "/enterprise/products",
   trial: "/enterprise/trial",
   apiKeys: "/enterprise/api-keys",
   consumptions: "/enterprise/consumptions",
@@ -138,6 +144,7 @@ const pageByRoute = Object.fromEntries(
 const enterprisePermissionModules: EnterprisePermissionModule[] = [
   { key: "dashboard", label: "看板", actions: ["查看"] },
   { key: "models", label: "模型管理", actions: ["查看"] },
+  { key: "products", label: "模型产品", actions: ["查看"] },
   {
     key: "apiKeys",
     label: "API Key",
@@ -168,6 +175,7 @@ const navGroups: Array<{ label: string; items: NavEntry[] }> = [
     items: [
       { key: "models", label: "大模型", icon: Layers },
       { key: "trial", label: "模拟试用", icon: Sparkles },
+      { key: "products", label: "模型产品", icon: Package },
     ],
   },
   {
@@ -381,6 +389,9 @@ export function EnterpriseSystem({
       ) : null}
       {effectivePage === "models" ? (
         <Models data={data} customer={context.customer} />
+      ) : null}
+      {effectivePage === "products" ? (
+        <Products data={data} customer={context.customer} />
       ) : null}
       {effectivePage === "trial" ? (
         <Trial data={data} customer={context.customer} />
@@ -1173,6 +1184,447 @@ function EnterpriseModelLogo({ model, size }: { model: AiModel; size: "sm" | "md
       )}
     </div>
   );
+}
+
+function Products({ data, customer }: { data: DealerData; customer: Customer }) {
+  const [keyword, setKeyword] = React.useState("");
+  const [viewMode, setViewMode] = React.useState<"cards" | "table">("cards");
+  const [detailProduct, setDetailProduct] = React.useState<ModelProduct | null>(null);
+  const [purchaseProduct, setPurchaseProduct] = React.useState<ModelProduct | null>(null);
+  const purchasedContracts = React.useMemo(
+    () => data.contracts.filter((contract) => contract.customerName === customer.company),
+    [customer.company, data.contracts],
+  );
+  const contractByProduct = React.useMemo(
+    () => new Map(purchasedContracts.map((contract) => [contract.productName, contract])),
+    [purchasedContracts],
+  );
+  const filteredProducts = React.useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    return data.products
+      .filter((product) => {
+        const purchased = contractByProduct.has(product.name);
+        return purchased || product.status === "上架";
+      })
+      .filter((product) => {
+        if (!normalizedKeyword) return true;
+        const contract = contractByProduct.get(product.name);
+        return [
+          product.name,
+          product.packageMode,
+          product.status,
+          product.billingMode,
+          product.relatedModels,
+          contract?.contractNo ?? "",
+          contract?.status ?? "",
+        ].some((value) => value.toLowerCase().includes(normalizedKeyword));
+      })
+      .sort((left, right) => {
+        const leftPurchased = contractByProduct.has(left.name);
+        const rightPurchased = contractByProduct.has(right.name);
+        if (leftPurchased !== rightPurchased) return leftPurchased ? -1 : 1;
+        return left.name.localeCompare(right.name, "zh-CN");
+      });
+  }, [contractByProduct, data.products, keyword]);
+
+  function resetFilters() {
+    setKeyword("");
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[260px] flex-1 sm:flex-none">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="pl-9 sm:w-80"
+                placeholder="搜索产品名称、套餐模式、关联模型"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+              />
+            </div>
+            <Button className="whitespace-nowrap" variant="secondary" onClick={resetFilters}>
+              <RotateCcw className="size-4" />
+              重置
+            </Button>
+          </div>
+          <EnterpriseViewModeToggle value={viewMode} onChange={setViewMode} />
+        </div>
+      </section>
+
+      {viewMode === "cards" ? (
+        <EnterpriseProductCardGrid
+          contractByProduct={contractByProduct}
+          models={data.models}
+          onDetail={setDetailProduct}
+          onPurchase={setPurchaseProduct}
+          products={filteredProducts}
+        />
+      ) : (
+        <EnterpriseProductTable
+          contractByProduct={contractByProduct}
+          onDetail={setDetailProduct}
+          onPurchase={setPurchaseProduct}
+          products={filteredProducts}
+        />
+      )}
+
+      {detailProduct ? (
+        <EnterpriseProductDetailDialog
+          contract={contractByProduct.get(detailProduct.name)}
+          models={data.models}
+          onClose={() => setDetailProduct(null)}
+          product={detailProduct}
+        />
+      ) : null}
+      {purchaseProduct ? (
+        <EnterpriseProductPurchaseDialog
+          customer={customer}
+          onClose={() => setPurchaseProduct(null)}
+          product={purchaseProduct}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function EnterpriseProductCardGrid({
+  contractByProduct,
+  models,
+  onDetail,
+  onPurchase,
+  products,
+}: {
+  contractByProduct: Map<string, Contract>;
+  models: AiModel[];
+  onDetail: (product: ModelProduct) => void;
+  onPurchase: (product: ModelProduct) => void;
+  products: ModelProduct[];
+}) {
+  if (products.length === 0) {
+    return (
+      <section className="rounded-md border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm shadow-slate-100">
+        暂无匹配产品
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      {products.map((product) => {
+        const contract = contractByProduct.get(product.name);
+        const relatedModels = resolveProductModels(product, models);
+        return (
+          <article
+            key={product.id}
+            className={cn(
+              "overflow-hidden rounded-md border bg-white shadow-sm shadow-slate-100 transition hover:shadow-md hover:shadow-slate-100",
+              contract ? "border-emerald-200 ring-1 ring-emerald-100" : "border-slate-200 hover:border-blue-100",
+            )}
+          >
+            <div className="border-b border-slate-100 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold text-slate-950">{product.name}</h3>
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
+                    <CalendarDays className="size-4 text-slate-400" />
+                    {getProductBillingLabel(product)}
+                  </div>
+                </div>
+                <EnterpriseProductBadge contract={contract} product={product} />
+              </div>
+            </div>
+            <div className="min-h-52 p-5">
+              <div className="text-sm font-semibold text-slate-400">关联模型（预览）</div>
+              <div className="mt-3 flex min-h-20 flex-wrap content-start gap-2">
+                {relatedModels.map((model) => (
+                  <span key={model.name} className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">
+                    <EnterpriseModelLogo model={model} size="sm" />
+                    {model.name}
+                  </span>
+                ))}
+              </div>
+              {contract ? (
+                <div className="mt-5 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                  合同 {contract.contractNo} · {contract.status}
+                </div>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-2 gap-4 border-t border-slate-100 p-5">
+              {getProductStats(product).map((item) => (
+                <div key={item.label}>
+                  <div className="text-sm font-semibold text-slate-400">{item.label}</div>
+                  <div className="mt-1 text-lg font-bold text-slate-950">{item.value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
+              <Button className="h-9 px-3" variant="secondary" onClick={() => onDetail(product)}>
+                <Eye className="size-4" />
+                详情
+              </Button>
+              {!contract ? (
+                <Button className="h-9 px-3" variant="primary" onClick={() => onPurchase(product)}>
+                  <ShoppingCart className="size-4" />
+                  购买
+                </Button>
+              ) : null}
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function EnterpriseProductTable({
+  contractByProduct,
+  onDetail,
+  onPurchase,
+  products,
+}: {
+  contractByProduct: Map<string, Contract>;
+  onDetail: (product: ModelProduct) => void;
+  onPurchase: (product: ModelProduct) => void;
+  products: ModelProduct[];
+}) {
+  const columns = ["产品名称", "套餐模式", "价格", "额度/折扣", "状态", "购买标识"];
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
+      <div className="overflow-x-auto">
+        <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+          <thead className="bg-slate-50 text-left text-slate-500">
+            <tr>
+              {columns.map((column) => (
+                <th key={column} className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium">
+                  {column}
+                </th>
+              ))}
+              <th className="sticky right-0 top-0 z-30 h-12 min-w-[120px] whitespace-nowrap border-b border-l border-slate-200 bg-slate-50 px-4 text-right font-medium shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
+                操作
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length + 1} className="h-24 px-4 text-center text-slate-500">
+                  暂无数据
+                </td>
+              </tr>
+            ) : null}
+            {products.map((product) => {
+              const contract = contractByProduct.get(product.name);
+              return (
+                <tr key={product.id} className="hover:bg-slate-50/70">
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 font-medium text-slate-800">{product.name}</td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{product.packageMode}</td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{getProductStats(product)[0]?.value ?? "-"}</td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{getProductStats(product)[1]?.value ?? "-"}</td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{product.status}</td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                    <EnterpriseProductBadge contract={contract} product={product} />
+                  </td>
+                  <td className="sticky right-0 z-20 whitespace-nowrap border-b border-l border-slate-100 bg-white px-4 py-3 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
+                    <div className="flex justify-end gap-2">
+                      <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(product)}>
+                        <Eye className="size-4" />
+                        详情
+                      </Button>
+                      {!contract ? (
+                        <Button className="px-2" variant="primary" onClick={() => onPurchase(product)}>
+                          <ShoppingCart className="size-4" />
+                          购买
+                        </Button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function EnterpriseProductPurchaseDialog({
+  customer,
+  onClose,
+  product,
+}: {
+  customer: Customer;
+  onClose: () => void;
+  product: ModelProduct;
+}) {
+  return (
+    <Modal
+      open
+      title="购买模型产品"
+      description={product.name}
+      onClose={onClose}
+    >
+      <div className="space-y-4 px-7 py-6">
+        <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm font-medium text-blue-700">
+          当前为购买入口展示，提交后由经销商为客户「{customer.company}」开通合同。
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <EnterpriseDetailField label="客户名称" value={customer.company} />
+          <EnterpriseDetailField label="产品名称" value={product.name} />
+          <EnterpriseDetailField label="套餐模式" value={product.packageMode} />
+          <EnterpriseDetailField label="计费模式" value={product.billingMode} />
+          {getProductStats(product).map((item) => (
+            <EnterpriseDetailField key={item.label} label={item.label} value={item.value} />
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-7 py-5">
+        <Button className="h-10 px-5" variant="secondary" onClick={onClose}>
+          取消
+        </Button>
+        <Button className="h-10 px-5" variant="primary" onClick={onClose}>
+          提交购买意向
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function EnterpriseProductDetailDialog({
+  contract,
+  models,
+  onClose,
+  product,
+}: {
+  contract?: Contract;
+  models: AiModel[];
+  onClose: () => void;
+  product: ModelProduct;
+}) {
+  return (
+    <Modal
+      open
+      title="模型产品详情"
+      description={product.name}
+      onClose={onClose}
+    >
+      <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-7 py-6">
+        <div className="grid gap-4 md:grid-cols-2">
+          <EnterpriseDetailField label="产品名称" value={product.name} />
+          <EnterpriseDetailField label="套餐模式" value={product.packageMode} />
+          <EnterpriseDetailField label="计费模式" value={product.billingMode} />
+          <EnterpriseDetailField label="状态" value={<EnterpriseProductBadge contract={contract} product={product} />} />
+          {getProductStats(product).map((item) => (
+            <EnterpriseDetailField key={item.label} label={item.label} value={item.value} />
+          ))}
+          {contract ? (
+            <>
+              <EnterpriseDetailField label="合同号" value={contract.contractNo} />
+              <EnterpriseDetailField label="合同状态" value={contract.status} />
+              <EnterpriseDetailField label="每日限额" value={contract.dailyLimit || "不限制"} />
+              <EnterpriseDetailField label="过期时间" value={contract.expiresAt || "永不过期"} />
+            </>
+          ) : null}
+        </div>
+        <div className="mt-5 rounded-md border border-slate-100 bg-slate-50 p-4">
+          <div className="text-sm font-semibold text-slate-400">关联模型</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {resolveProductModels(product, models).map((model) => (
+              <span key={model.name} className="inline-flex items-center gap-2 rounded bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-100">
+                <EnterpriseModelLogo model={model} size="sm" />
+                {model.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-7 py-5">
+        <Button className="h-10 px-5" variant="secondary" onClick={onClose}>
+          关闭
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function EnterpriseProductBadge({ contract, product }: { contract?: Contract; product: ModelProduct }) {
+  if (contract) {
+    return (
+      <span className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+        contract.status === "启用" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600",
+      )}>
+        已购买 · {contract.status}
+      </span>
+    );
+  }
+
+  return (
+    <span className={cn(
+      "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+      product.status === "上架" ? "bg-blue-50 text-[#1155ff]" : "bg-slate-100 text-slate-500",
+    )}>
+      {product.status}
+    </span>
+  );
+}
+
+function getProductBillingLabel(product: ModelProduct) {
+  if (product.packageMode === "按量包月" || product.packageMode === "按金额包月") {
+    return `${product.billingMode === "按量" ? "按量计费" : "套餐计费"}（包月）`;
+  }
+
+  return product.packageMode === "不限时按量" ? "按量计费" : "套餐计费";
+}
+
+function getProductStats(product: ModelProduct) {
+  if (product.packageMode === "按量包月") {
+    return [
+      { label: "价格", value: `${formatCurrency(product.monthlyFee ?? 0)} / 月` },
+      { label: "月额度（M Tokens）", value: formatProductQuota(product.monthlyTokenM) },
+    ];
+  }
+
+  if (product.packageMode === "按金额包月") {
+    return [
+      { label: "每月总费用", value: `${formatCurrency(product.monthlyFee ?? 0)} / 月` },
+      { label: "总额度（M Tokens）", value: formatProductQuota(product.tokenLimitM) },
+    ];
+  }
+
+  if (product.packageMode === "不限时按量") {
+    return [
+      { label: "折扣", value: formatProductDiscount(product.discount ?? 0) },
+      { label: "总额度（M Tokens）", value: formatProductQuota(product.tokenLimitM) },
+    ];
+  }
+
+  return [
+    { label: "价格", value: `${formatCurrency(product.inputPrice)}/1M` },
+    { label: "总额度（M Tokens）", value: formatProductQuota(product.tokenLimitM) },
+  ];
+}
+
+function formatProductQuota(value?: string) {
+  if (!value || value === "不限") return "不限";
+  return formatNumber(Number(value));
+}
+
+function formatProductDiscount(value: number) {
+  if (!value) return "-";
+  return `${value <= 1 ? Number((value * 10).toFixed(2)) : value} 折`;
+}
+
+function resolveProductModels(product: ModelProduct, models: AiModel[]) {
+  const names = product.relatedModels.split(",").map((item) => item.trim()).filter(Boolean);
+  return names.flatMap((name) => {
+    const model = models.find((item) => item.name === name);
+    return model ? [model] : [];
+  });
 }
 
 function Trial({ data, customer }: { data: DealerData; customer: Customer }) {
@@ -4078,8 +4530,9 @@ function filterEnterpriseNavGroups(
 
 const enterpriseLegacyPermissionPages: Record<string, EnterprisePageKey[]> = {
   看板: ["dashboard"],
-  模型: ["models", "trial"],
-  模型管理: ["models", "trial"],
+  模型: ["models", "products", "trial"],
+  模型管理: ["models", "products", "trial"],
+  模型产品: ["products"],
   API: ["apiKeys", "consumptions", "usageLogs"],
   财务: ["bills", "payment"],
   财务管理: ["bills", "payment"],
@@ -4090,7 +4543,8 @@ const enterpriseLegacyPermissionPages: Record<string, EnterprisePageKey[]> = {
 
 const enterpriseModulePages: Record<string, EnterprisePageKey[]> = {
   看板: ["dashboard"],
-  模型管理: ["models", "trial"],
+  模型管理: ["models", "products", "trial"],
+  模型产品: ["products"],
   "API Key": ["apiKeys"],
   消费记录: ["consumptions"],
   使用日志: ["usageLogs"],

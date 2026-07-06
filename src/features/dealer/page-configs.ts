@@ -1,3 +1,4 @@
+import * as React from "react";
 import { formatCurrency, maskApiKey } from "./dealer-utils";
 import type { RecordPageConfig } from "./pages/record-page";
 import type { BaseRecord } from "./types";
@@ -60,6 +61,29 @@ const formatTotalTokens = (value: unknown, record: BaseRecord) => {
   return formatTokenCount(inputTokens + outputTokens);
 };
 
+const formatAbilityTags = (value: unknown) => {
+  const tags = String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (tags.length === 0) {
+    return "-";
+  }
+
+  return React.createElement(
+    "div",
+    { className: "flex max-w-[320px] flex-wrap gap-2" },
+    tags.map((tag) =>
+      React.createElement(
+        "span",
+        { key: tag, className: "rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold leading-5 text-slate-500" },
+        tag,
+      ),
+    ),
+  );
+};
+
 export const pageConfigs = {
   models: {
     entity: "models",
@@ -75,7 +99,7 @@ export const pageConfigs = {
       { key: "outputPrice", label: "输出价格", format: (value) => `${formatCurrency(Number(value))}/1M Tokens` },
       { key: "cachePrice", label: "缓存价格", format: (value) => `${formatCurrency(Number(value))}/1M Tokens` },
       { key: "billingType", label: "计费类型" },
-      { key: "abilities", label: "模型能力" },
+      { key: "abilities", label: "模型能力", width: "260px", format: formatAbilityTags },
     ],
     fields: [
       { key: "provider", label: "厂商", required: true },

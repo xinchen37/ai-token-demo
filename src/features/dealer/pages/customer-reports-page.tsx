@@ -1,5 +1,5 @@
 import * as React from "react";
-import { BarChart3, Check, ChevronDown, Coins, Download, RotateCcw, Users, Wallet, Zap } from "lucide-react";
+import { BarChart3, Check, ChevronDown, Coins, Download, LineChart, RotateCcw, Users, Wallet, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { ConsumptionRecord, DealerData } from "../types";
@@ -7,6 +7,7 @@ import { formatCurrency, formatNumber } from "../dealer-utils";
 
 type ReportTab = "stats" | "details";
 type TimeRange = "last30" | "last7" | "custom";
+type ReportTrendMetric = "amount" | "tokens" | "calls";
 
 interface ReportFilters {
   range: TimeRange;
@@ -98,8 +99,8 @@ function ReportFilterPanel({
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-[140px] shrink-0">
           <Select className="h-10 rounded-md pl-3 focus:border-[#1155ff] focus:ring-blue-100" value={filters.range} onChange={(event) => onChange({ ...filters, range: event.target.value as TimeRange })} aria-label="时间范围">
-            <option value="last30">近30天</option>
             <option value="last7">近7天</option>
+            <option value="last30">近30天</option>
             <option value="custom">自定义</option>
           </Select>
         </div>
@@ -205,8 +206,18 @@ function ModelMultiSelect({ value, options, onChange }: { value: string[]; optio
 }
 
 function StatsReport({ filters, records, metrics }: { data: DealerData; filters: ReportFilters; records: ConsumptionRecord[]; metrics: ReturnType<typeof buildReportMetrics> }) {
+  const [trendMetric, setTrendMetric] = React.useState<ReportTrendMetric>("amount");
   const timeSeries = React.useMemo(() => buildTimeSeries(records, filters), [filters, records]);
   const modelNames = React.useMemo(() => unique(records.map((record) => record.modelName)), [records]);
+  const trendItems = React.useMemo(
+    () => [
+      { label: "消耗金额", title: "消耗金额趋势图表", metric: "amount" as const, points: timeSeries.map((item) => ({ label: item.label, value: item.amount })) },
+      { label: "消耗Tokens", title: "消耗Tokens趋势图表", metric: "tokens" as const, points: timeSeries.map((item) => ({ label: item.label, value: item.tokens })) },
+      { label: "调用次数", title: "调用次数趋势图表", metric: "calls" as const, points: timeSeries.map((item) => ({ label: item.label, value: item.count })) },
+    ],
+    [timeSeries],
+  );
+  const activeTrend = trendItems.find((item) => item.metric === trendMetric) ?? trendItems[0];
 
   return (
     <div className="space-y-5">
@@ -215,6 +226,30 @@ function StatsReport({ filters, records, metrics }: { data: DealerData; filters:
         <ReportMetric icon={Coins} tone="pink" label="消耗Token总数" value={formatTokenOverview(metrics.tokens)} />
         <ReportMetric icon={Zap} tone="indigo" label="请求总次数" value={formatNumber(metrics.requestCount)} />
         <ReportMetric icon={Users} tone="blue" label="客户总数" value={formatNumber(metrics.customerCount)} />
+      </div>
+
+      <div>
+        <div className="flex items-center gap-3">
+          <LineChart className="size-5 text-slate-400" />
+          <h2 className="text-lg font-bold text-slate-950">趋势分析</h2>
+        </div>
+        <section className="mt-4 rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
+          <div className="flex flex-wrap items-center gap-10">
+            <div className="flex items-center gap-10">
+              {trendItems.map((item) => (
+                <button
+                  key={item.metric}
+                  className={`h-11 border-b-2 px-1 text-base font-semibold transition-colors ${trendMetric === item.metric ? "border-[#1155ff] text-[#1155ff]" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+                  onClick={() => setTrendMetric(item.metric)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ReportTrendChart title={activeTrend.title} metric={activeTrend.metric} points={activeTrend.points} />
+        </section>
       </div>
 
       <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
@@ -285,6 +320,174 @@ function ReportMetric({ icon: Icon, tone, label, value }: { icon: React.Componen
       </div>
     </div>
   );
+}
+
+function ReportTrendChart({
+  metric,
+  points,
+  title,
+}: {
+  metric: ReportTrendMetric;
+  points: Array<{ label: string; value: number }>;
+  title: string;
+}) {
+  const chartRef = React.useRef<HTMLDivElement>(null);
+  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
+  const [chartWidth, setChartWidth] = React.useState(1200);
+  const chartHeight = 380;
+  const plot = getReportTrendPlot(chartWidth);
+  const maxValue = Math.max(...points.map((point) => point.value), 1);
+  const chartMax = maxValue * 1.08;
+  const polylinePoints = points
+    .map((point, index) => {
+      const { x, y } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const labelStep = points.length > 12 ? Math.ceil(points.length / 8) : 1;
+  const visibleLabels = points
+    .map((point, index) => ({ point, index }))
+    .filter(({ index }) => index === 0 || index === points.length - 1 || index % labelStep === 0);
+  const hoveredPoint = hoveredIndex === null ? null : getReportTrendPoint(points[hoveredIndex], hoveredIndex, points.length, chartMax, plot);
+
+  React.useLayoutEffect(() => {
+    const element = chartRef.current;
+    if (!element) return;
+
+    const updateWidth = () => setChartWidth(Math.max(760, Math.round(element.clientWidth)));
+    updateWidth();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  return (
+    <div ref={chartRef} className="mt-14 h-[380px] overflow-hidden">
+      {points.length === 0 ? (
+        <div className="py-8 text-center text-sm text-slate-400">暂无数据</div>
+      ) : (
+        <svg className="h-full w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={title}>
+          {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+            const y = plot.bottom - tick * (plot.bottom - plot.top);
+            return (
+              <g key={tick}>
+                <line x1={plot.left} x2={plot.right} y1={y} y2={y} stroke="#eef1f5" />
+                <text x={plot.left - 14} y={y + 6} fill="#9aa4b2" fontSize="16" fontWeight="600" textAnchor="end">
+                  {formatReportTrendAxisValue(chartMax * tick, metric)}
+                </text>
+              </g>
+            );
+          })}
+          {points.map((point, index) => {
+            const { x } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+            return <line key={`${point.label}-${index}`} x1={x} x2={x} y1={plot.top} y2={plot.bottom} stroke="#f3f5f8" />;
+          })}
+          <polyline points={polylinePoints} fill="none" stroke="#3a6fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((point, index) => {
+            const { x, y } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+            const isHovered = hoveredIndex === index;
+            return (
+              <g key={`${point.label}-${index}`} onMouseEnter={() => setHoveredIndex(index)} onMouseLeave={() => setHoveredIndex(null)}>
+                <circle cx={x} cy={y} r={isHovered ? "5.5" : "4"} fill="#3a6fff" />
+                <circle cx={x} cy={y} r="18" fill="transparent" className="cursor-pointer" />
+              </g>
+            );
+          })}
+          {hoveredPoint ? (
+            <g pointerEvents="none">
+              <line x1={hoveredPoint.x} x2={hoveredPoint.x} y1={plot.top} y2={plot.bottom} stroke="#94a3b8" strokeDasharray="4 4" />
+              <foreignObject
+                x={Math.min(Math.max(hoveredPoint.x + 12, plot.left), plot.right - 210)}
+                y={Math.max(hoveredPoint.y - 78, plot.top)}
+                width="200"
+                height="76"
+              >
+                <div className="rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
+                  <div className="font-semibold text-slate-950">{hoveredPoint.label}</div>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-slate-500">
+                    <span>{getTrendMetricLabel(metric)}</span>
+                    <span className="font-semibold text-slate-900">{formatReportTrendTooltipValue(hoveredPoint.value, metric)}</span>
+                  </div>
+                </div>
+              </foreignObject>
+            </g>
+          ) : null}
+          {visibleLabels.map(({ point, index }) => {
+            const { x } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+            const isFirst = index === 0;
+            const isLast = index === points.length - 1;
+            return (
+              <text
+                key={`${point.label}-${index}`}
+                x={isFirst ? Math.max(x, plot.left) : isLast ? Math.min(x, plot.right) : x}
+                y={chartHeight - 18}
+                fill="#9aa4b2"
+                fontSize="16"
+                fontWeight="600"
+                textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
+              >
+                {point.label}
+              </text>
+            );
+          })}
+        </svg>
+      )}
+    </div>
+  );
+}
+
+function getReportTrendPoint(
+  point: { label: string; value: number },
+  index: number,
+  total: number,
+  maxValue: number,
+  plot: ReturnType<typeof getReportTrendPlot>,
+) {
+  const x = total === 1 ? plot.left : plot.left + (index / (total - 1)) * (plot.right - plot.left);
+  const y = plot.bottom - (point.value / maxValue) * (plot.bottom - plot.top);
+  return { ...point, x, y };
+}
+
+function getReportTrendPlot(chartWidth: number) {
+  return {
+    top: 28,
+    bottom: 322,
+    left: 82,
+    right: chartWidth - 26,
+  };
+}
+
+function getTrendMetricLabel(metric: ReportTrendMetric) {
+  if (metric === "amount") return "消耗金额";
+  if (metric === "tokens") return "消耗Tokens";
+  return "调用次数";
+}
+
+function formatReportTrendAxisValue(value: number, metric: ReportTrendMetric) {
+  if (metric === "amount") return formatCurrencyCompact(value);
+  if (metric === "tokens") return formatTokenAxis(value);
+  return `${Math.round(value)}`;
+}
+
+function formatReportTrendTooltipValue(value: number, metric: ReportTrendMetric) {
+  if (metric === "amount") return formatCurrency(value);
+  if (metric === "tokens") return `${formatNumber(value)} Tokens`;
+  return `${formatNumber(value)} 次`;
+}
+
+function formatCurrencyCompact(value: number) {
+  if (value >= 10_000) return `${trimMetricNumber(value / 10_000, 1)}万`;
+  if (value >= 1_000) return `${trimMetricNumber(value / 1_000, 1)}k`;
+  return `${Math.round(value)}`;
+}
+
+function formatTokenAxis(value: number) {
+  if (value >= 100_000_000) return `${trimMetricNumber(value / 100_000_000, 1)}亿`;
+  if (value >= 1_000_000) return `${trimMetricNumber(value / 1_000_000, 0)}M`;
+  if (value >= 10_000) return `${trimMetricNumber(value / 10_000, 0)}万`;
+  return `${Math.round(value)}`;
 }
 
 function TimeBarChart({
