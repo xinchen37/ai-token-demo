@@ -809,19 +809,21 @@ function ReportTrendChart({
               <foreignObject
                 x={Math.min(
                   Math.max(hoveredPoint.x + 12, plot.left),
-                  plot.right - 190,
+                  plot.right - 270,
                 )}
                 y={Math.max(hoveredPoint.y - 76, plot.top)}
-                width="180"
+                width="260"
                 height="72"
               >
                 <div className="rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
                   <div className="font-semibold text-slate-950">
                     {hoveredPoint.label}
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-slate-500">
-                    <span>{getTrendMetricLabel(metric)}</span>
-                    <span className="font-semibold text-slate-900">
+                  <div className="mt-2 flex items-center justify-between gap-4 text-slate-500">
+                    <span className="shrink-0 whitespace-nowrap">
+                      {getTrendMetricLabel(metric)}
+                    </span>
+                    <span className="min-w-0 whitespace-nowrap text-right font-semibold text-slate-900">
                       {formatReportTrendTooltipValue(
                         hoveredPoint.value,
                         metric,
