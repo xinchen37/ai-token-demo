@@ -11,10 +11,9 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
-import type { DealerData, DealerPageKey } from "../types";
+import type { ConsumptionRecord, DealerData, DealerPageKey } from "../types";
 import {
   buildTrendSeries,
-  buildRanking,
   calculateDashboardMetrics,
   formatCurrency,
   formatNumber,
@@ -32,26 +31,31 @@ interface DashboardPageProps {
 export function DashboardPage({ data, onPageChange }: DashboardPageProps) {
   const [trendMetric, setTrendMetric] = React.useState<TrendMetric>("amount");
   const [trendRange, setTrendRange] = React.useState<TrendRange>("today");
+  const [rankingRange, setRankingRange] = React.useState<TrendRange>("last30");
   const metrics = calculateDashboardMetrics(data);
+  const rankingRecords = React.useMemo(
+    () => filterDashboardRecordsByRange(data.consumptions, rankingRange, new Date("2026-07-03T14:00:00+08:00")),
+    [data.consumptions, rankingRange],
+  );
   const rankingGroups = React.useMemo(
     () => [
       {
         title: "模型消耗排行榜",
         metric: "model" as const,
-        items: buildRanking(data, "model", 3),
+        items: buildDashboardRanking(data, rankingRecords, "model", 3),
       },
       {
         title: "客户消耗排行",
         metric: "customer" as const,
-        items: buildRanking(data, "customer", 3),
+        items: buildDashboardRanking(data, rankingRecords, "customer", 3),
       },
       {
         title: "销售业绩排行",
         metric: "sales" as const,
-        items: buildRanking(data, "sales", 3),
+        items: buildDashboardRanking(data, rankingRecords, "sales", 3),
       },
     ],
-    [data],
+    [data, rankingRecords],
   );
   const trendSeries = React.useMemo(
     () =>
@@ -107,11 +111,13 @@ export function DashboardPage({ data, onPageChange }: DashboardPageProps) {
       <section className="grid gap-8 2xl:grid-cols-[1fr_360px]">
         <div className="space-y-8">
           <div>
-            <SectionTitle icon={LineChart} title="模型数据分析" />
+            <div className="flex items-center justify-between gap-4">
+              <SectionTitle icon={LineChart} title="模型数据分析" />
+              <RangeTabs value={trendRange} onChange={setTrendRange} />
+            </div>
             <div className="mt-4 rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <MetricTabs value={trendMetric} onChange={setTrendMetric} />
-                <RangeTabs value={trendRange} onChange={setTrendRange} />
               </div>
               <TrendChart
                 metric={trendMetric}
@@ -122,7 +128,10 @@ export function DashboardPage({ data, onPageChange }: DashboardPageProps) {
           </div>
 
           <div>
-            <SectionTitle icon={Trophy} title="排行榜" />
+            <div className="flex items-center justify-between gap-4">
+              <SectionTitle icon={Trophy} title="排行榜" />
+              <RankingRangeTabs value={rankingRange} onChange={setRankingRange} />
+            </div>
             <div className="mt-4 grid gap-4 xl:grid-cols-3">
               {rankingGroups.map((group) => (
                 <RankingCard
@@ -470,6 +479,35 @@ function RangeTabs({
   );
 }
 
+function RankingRangeTabs({
+  value,
+  onChange,
+}: {
+  value: TrendRange;
+  onChange: (value: TrendRange) => void;
+}) {
+  const items: Array<{ label: string; value: TrendRange }> = [
+    { label: "近7天", value: "last7" },
+    { label: "近30天", value: "last30" },
+    { label: "本月", value: "month" },
+  ];
+
+  return (
+    <div className="flex rounded-md bg-slate-50 p-1">
+      {items.map((item) => (
+        <button
+          key={item.value}
+          className={`h-8 rounded px-5 text-sm font-medium transition-colors ${value === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+          onClick={() => onChange(item.value)}
+          type="button"
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TrendChart({
   metric,
   range,
@@ -776,4 +814,90 @@ function formatTrendTooltipValue(value: number, metric: TrendMetric): string {
   }
 
   return `${formatNumber(value)} 次`;
+}
+
+function buildDashboardRanking(
+  data: DealerData,
+  records: ConsumptionRecord[],
+  metric: RankMetric,
+  limit = 10,
+): RankItem[] {
+  if (metric === "model") {
+    return rankDashboardRecords(records, "modelName", limit);
+  }
+
+  if (metric === "customer") {
+    return rankDashboardRecords(records, "customerName", limit);
+  }
+
+  const salesByCustomer = new Map(data.customers.map((customer) => [customer.company, customer.sales]));
+  const grouped = new Map<string, RankItem & { customerNames: Set<string> }>();
+
+  for (const record of records.filter((item) => item.status === "成功")) {
+    const salesName = salesByCustomer.get(record.customerName) ?? "未分配";
+    const current = grouped.get(salesName) ?? {
+      name: salesName,
+      amount: 0,
+      tokens: 0,
+      count: 0,
+      customerNames: new Set<string>(),
+    };
+    current.amount += record.amount;
+    current.tokens += record.inputTokens + record.outputTokens;
+    current.count += 1;
+    current.customerNames.add(record.customerName);
+    grouped.set(salesName, current);
+  }
+
+  return [...grouped.values()]
+    .map(({ customerNames, ...item }) => ({
+      ...item,
+      customerCount: customerNames.size,
+      averageAmount: customerNames.size === 0 ? 0 : item.amount / customerNames.size,
+    }))
+    .sort((left, right) => right.amount - left.amount)
+    .slice(0, limit);
+}
+
+function rankDashboardRecords(
+  records: ConsumptionRecord[],
+  key: "modelName" | "customerName",
+  limit: number,
+) {
+  const grouped = new Map<string, RankItem>();
+
+  for (const record of records.filter((item) => item.status === "成功")) {
+    const name = record[key];
+    const current = grouped.get(name) ?? { name, amount: 0, tokens: 0, count: 0 };
+    current.amount += record.amount;
+    current.tokens += record.inputTokens + record.outputTokens;
+    current.count += 1;
+    grouped.set(name, current);
+  }
+
+  return [...grouped.values()].sort((left, right) => right.amount - left.amount).slice(0, limit);
+}
+
+function filterDashboardRecordsByRange(
+  records: ConsumptionRecord[],
+  range: TrendRange,
+  now: Date,
+) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (range === "last7") {
+    start.setDate(start.getDate() - 6);
+  } else if (range === "last30") {
+    start.setDate(start.getDate() - 29);
+  } else if (range === "month") {
+    start.setDate(1);
+  }
+
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  return records.filter((record) => {
+    const calledAt = new Date(record.calledAt.replace(" ", "T"));
+    return calledAt >= start && calledAt <= end;
+  });
 }

@@ -19,6 +19,7 @@ import { formatCurrency, formatNumber } from "../dealer-utils";
 type ReportTab = "stats" | "details";
 type TimeRange = "last30" | "last7" | "custom";
 type ReportTrendMetric = "amount" | "tokens" | "calls";
+type ReportTrendRange = "today" | "last7" | "last30" | "month";
 
 interface ReportFilters {
   range: TimeRange;
@@ -289,9 +290,15 @@ function StatsReport({
 }) {
   const [trendMetric, setTrendMetric] =
     React.useState<ReportTrendMetric>("amount");
+  const [trendRange, setTrendRange] =
+    React.useState<ReportTrendRange>("today");
   const timeSeries = React.useMemo(
     () => buildTimeSeries(records, filters),
     [filters, records],
+  );
+  const trendTimeSeries = React.useMemo(
+    () => buildReportTrendTimeSeries(records, filters, trendRange),
+    [filters, records, trendRange],
   );
   const modelNames = React.useMemo(
     () => unique(records.map((record) => record.modelName)),
@@ -303,7 +310,7 @@ function StatsReport({
         label: "消耗金额",
         title: "消耗金额趋势图表",
         metric: "amount" as const,
-        points: timeSeries.map((item) => ({
+        points: trendTimeSeries.map((item) => ({
           label: item.label,
           value: item.amount,
         })),
@@ -312,7 +319,7 @@ function StatsReport({
         label: "消耗Tokens",
         title: "消耗Tokens趋势图表",
         metric: "tokens" as const,
-        points: timeSeries.map((item) => ({
+        points: trendTimeSeries.map((item) => ({
           label: item.label,
           value: item.tokens,
         })),
@@ -321,13 +328,13 @@ function StatsReport({
         label: "调用次数",
         title: "调用次数趋势图表",
         metric: "calls" as const,
-        points: timeSeries.map((item) => ({
+        points: trendTimeSeries.map((item) => ({
           label: item.label,
           value: item.count,
         })),
       },
     ],
-    [timeSeries],
+    [trendTimeSeries],
   );
   const activeTrend =
     trendItems.find((item) => item.metric === trendMetric) ?? trendItems[0];
@@ -360,6 +367,28 @@ function StatsReport({
           value={formatNumber(metrics.customerCount)}
         />
       </div>
+
+      <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex shrink-0 items-center gap-3">
+            <LineChart className="size-5 text-slate-400" />
+            <h2 className="text-lg font-bold text-slate-950">模型趋势分析</h2>
+          </div>
+          <ReportTrendRangeTabs value={trendRange} onChange={setTrendRange} />
+        </div>
+        <div className="mt-6 space-y-4">
+          <ReportTrendMetricTabs
+            items={trendItems}
+            value={trendMetric}
+            onChange={setTrendMetric}
+          />
+          <ReportTrendChart
+            title={activeTrend.title}
+            metric={activeTrend.metric}
+            points={activeTrend.points}
+          />
+        </div>
+      </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
         <div className="flex items-center gap-3">
@@ -523,6 +552,69 @@ function ReportMetric({
   );
 }
 
+function ReportTrendRangeTabs({
+  value,
+  onChange,
+}: {
+  value: ReportTrendRange;
+  onChange: (value: ReportTrendRange) => void;
+}) {
+  const items: Array<{ label: string; value: ReportTrendRange }> = [
+    { label: "今天", value: "today" },
+    { label: "近7天", value: "last7" },
+    { label: "近30天", value: "last30" },
+    { label: "本月", value: "month" },
+  ];
+
+  return (
+    <div className="flex h-10 items-center rounded-md bg-slate-50 p-1">
+      {items.map((item) => (
+        <button
+          key={item.value}
+          className={`h-8 rounded px-5 text-sm font-medium transition-colors ${
+            value === item.value
+              ? "bg-white text-slate-950 shadow-sm"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+          onClick={() => onChange(item.value)}
+          type="button"
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReportTrendMetricTabs({
+  items,
+  value,
+  onChange,
+}: {
+  items: Array<{ label: string; metric: ReportTrendMetric }>;
+  value: ReportTrendMetric;
+  onChange: (value: ReportTrendMetric) => void;
+}) {
+  return (
+    <div className="flex gap-8">
+      {items.map((item) => (
+        <button
+          key={item.metric}
+          className={`border-b-2 pb-2 text-sm font-semibold transition-colors ${
+            value === item.metric
+              ? "border-[#1155ff] text-[#1155ff]"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+          onClick={() => onChange(item.metric)}
+          type="button"
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ReportTrendChart({
   metric,
   points,
@@ -551,13 +643,47 @@ function ReportTrendChart({
       return `${x},${y}`;
     })
     .join(" ");
-  const labelStep = points.length > 12 ? Math.ceil(points.length / 8) : 1;
-  const visibleLabels = points
+  const labelStep = points.length > 12 ? Math.ceil(points.length / 7) : 1;
+  const labelCandidates = points
     .map((point, index) => ({ point, index }))
     .filter(
       ({ index }) =>
         index === 0 || index === points.length - 1 || index % labelStep === 0,
     );
+  const minLabelGap = 96;
+  const visibleLabels = labelCandidates.reduce<Array<(typeof labelCandidates)[number]>>(
+    (labels, candidate) => {
+      const candidateX = getReportTrendPoint(
+        candidate.point,
+        candidate.index,
+        points.length,
+        chartMax,
+        plot,
+      ).x;
+      const previous = labels.at(-1);
+
+      if (!previous) return [candidate];
+
+      const previousX = getReportTrendPoint(
+        previous.point,
+        previous.index,
+        points.length,
+        chartMax,
+        plot,
+      ).x;
+
+      if (candidateX - previousX >= minLabelGap) {
+        return [...labels, candidate];
+      }
+
+      if (candidate.index === points.length - 1) {
+        return [...labels.slice(0, -1), candidate];
+      }
+
+      return labels;
+    },
+    [],
+  );
   const hoveredPoint =
     hoveredIndex === null
       ? null
@@ -584,7 +710,7 @@ function ReportTrendChart({
   }, []);
 
   return (
-    <div ref={chartRef} className="mt-14 h-[380px] overflow-hidden">
+    <div ref={chartRef} className="mt-8 h-[380px] overflow-hidden">
       {points.length === 0 ? (
         <div className="py-8 text-center text-sm text-slate-400">暂无数据</div>
       ) : (
@@ -609,7 +735,7 @@ function ReportTrendChart({
                   x={plot.left - 14}
                   y={y + 6}
                   fill="#9aa4b2"
-                  fontSize="16"
+                  fontSize="14"
                   fontWeight="600"
                   textAnchor="end"
                 >
@@ -734,7 +860,7 @@ function ReportTrendChart({
                 }
                 y={chartHeight - 18}
                 fill="#9aa4b2"
-                fontSize="16"
+                fontSize="14"
                 fontWeight="600"
                 textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
               >
@@ -1323,6 +1449,64 @@ function buildDetailRows(
   }));
 }
 
+function getReportTrendFilters(
+  filters: ReportFilters,
+  range: ReportTrendRange,
+): ReportFilters {
+  if (range === "last7" || range === "last30") {
+    return { ...filters, range };
+  }
+
+  if (range === "today") {
+    const today = formatDate(now);
+    return {
+      ...filters,
+      range: "custom",
+      customStart: today,
+      customEnd: today,
+    };
+  }
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    ...filters,
+    range: "custom",
+    customStart: formatDate(monthStart),
+    customEnd: formatDate(now),
+  };
+}
+
+function buildReportTrendTimeSeries(
+  records: ConsumptionRecord[],
+  filters: ReportFilters,
+  range: ReportTrendRange,
+) {
+  if (range !== "today") {
+    return buildTimeSeries(records, getReportTrendFilters(filters, range));
+  }
+
+  const start = startOfDay(now);
+  const hourCount = now.getHours() + 1;
+  const buckets = Array.from({ length: hourCount }, (_, index) => {
+    const hourStart = addHours(start, index);
+    return {
+      label: `${String(hourStart.getHours()).padStart(2, "0")}:00`,
+      amount: 0,
+      tokens: 0,
+      count: 0,
+      amountByModel: {} as Record<string, number>,
+      tokensByModel: {} as Record<string, number>,
+      countByModel: {} as Record<string, number>,
+      start: hourStart,
+      end: addHours(hourStart, 1),
+    };
+  });
+
+  addRecordsToTimeBuckets(records, buckets);
+
+  return mapTimeBuckets(buckets);
+}
+
 function buildTimeSeries(records: ConsumptionRecord[], filters: ReportFilters) {
   const { start, end } = getDateRange(filters);
   const dayCount = Math.max(
@@ -1344,6 +1528,24 @@ function buildTimeSeries(records: ConsumptionRecord[], filters: ReportFilters) {
     };
   });
 
+  addRecordsToTimeBuckets(records, buckets);
+
+  return mapTimeBuckets(buckets);
+}
+
+function addRecordsToTimeBuckets(
+  records: ConsumptionRecord[],
+  buckets: Array<{
+    amount: number;
+    tokens: number;
+    count: number;
+    amountByModel: Record<string, number>;
+    tokensByModel: Record<string, number>;
+    countByModel: Record<string, number>;
+    start: Date;
+    end: Date;
+  }>,
+) {
   for (const record of records) {
     const calledAt = parseLocalDateTime(record.calledAt);
     const bucket = buckets.find(
@@ -1362,7 +1564,19 @@ function buildTimeSeries(records: ConsumptionRecord[], filters: ReportFilters) {
     bucket.countByModel[record.modelName] =
       (bucket.countByModel[record.modelName] ?? 0) + requestCount;
   }
+}
 
+function mapTimeBuckets(
+  buckets: Array<{
+    label: string;
+    amount: number;
+    tokens: number;
+    count: number;
+    amountByModel: Record<string, number>;
+    tokensByModel: Record<string, number>;
+    countByModel: Record<string, number>;
+  }>,
+) {
   return buckets.map(
     ({
       label,
@@ -1466,6 +1680,12 @@ function getStackPalette(tone: "blue" | "cyan" | "pink") {
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function addHours(date: Date, hours: number) {
+  const nextDate = new Date(date);
+  nextDate.setHours(nextDate.getHours() + hours);
   return nextDate;
 }
 
