@@ -41,11 +41,15 @@ export interface AiModel extends BaseRecord {
   name: string;
   type: "对话补全" | "图像" | "文本转语音" | "语音转文本" | "视频";
   billingType: "按量计费" | "按次计费";
+  originalInputPrice?: number;
+  originalOutputPrice?: number;
+  originalCachePrice?: number;
   inputPrice: number;
   outputPrice: number;
   cachePrice: number;
   costInputPrice: number;
   costOutputPrice: number;
+  costCachePrice?: number;
   abilities: string;
   status: "可用" | "维护中";
 }

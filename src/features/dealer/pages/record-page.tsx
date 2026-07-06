@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Bot, CalendarDays, Check, ChevronDown, Clock, Cpu, Download, Edit3, Eye, LayoutGrid, List, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Bot, Building2, CalendarDays, Check, ChevronDown, Clock, Coins, Cpu, CreditCard, Database, Download, Edit3, Eye, Info, LayoutGrid, List, LogIn, LogOut, Percent, Plus, RotateCcw, Search, Tags, Trash2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -362,7 +362,7 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm" role="presentation" onMouseDown={closeForm}>
           <section
             aria-modal="true"
-            className={`max-h-[calc(100vh-64px)] w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 ${isProductPage ? "max-w-6xl" : "max-w-4xl"}`}
+            className={`max-h-[calc(100vh-64px)] w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 ${isProductPage || isModelPage ? "max-w-6xl" : "max-w-4xl"}`}
             onMouseDown={(event) => event.stopPropagation()}
             role="dialog"
           >
@@ -383,7 +383,9 @@ export function RecordPage({ config, records, data, onCreate, onUpdate, onDelete
               </div>
 
               <div className="overflow-y-auto px-7 py-6">
-                {isProductPage ? (
+                {isModelPage ? (
+                  <ModelFormBody draft={draft} fields={resolvedFields} setDraft={setDraft} />
+                ) : isProductPage ? (
                   <ProductFormBody draft={draft} fields={resolvedFields} modelOptions={productModelOptions} setDraft={setDraft} />
                 ) : (
                   <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
@@ -725,6 +727,7 @@ function ModelDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; on
     { label: "缓存价格", value: `${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M Tokens` },
     { label: "成本输入价", value: `${formatCurrency(Number(getRecordValue(record, "costInputPrice") ?? 0))}/1M Tokens` },
     { label: "成本输出价", value: `${formatCurrency(Number(getRecordValue(record, "costOutputPrice") ?? 0))}/1M Tokens` },
+    { label: "成本缓存价", value: `${formatCurrency(Number(getRecordValue(record, "costCachePrice") ?? getRecordValue(record, "cachePrice") ?? 0))}/1M Tokens` },
     { label: "计费类型", value: billingType },
     { label: "模型能力", value: abilities },
     { label: "创建时间", value: record.createdAt },
@@ -738,6 +741,371 @@ function ModelDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; on
       ))}
     </DetailDialogShell>
   );
+}
+
+function ModelFormBody({
+  draft,
+  fields,
+  setDraft,
+}: {
+  draft: Record<string, string | number>;
+  fields: FieldConfig[];
+  setDraft: React.Dispatch<React.SetStateAction<Record<string, string | number>>>;
+}) {
+  const fieldMap = React.useMemo(() => Object.fromEntries(fields.map((field) => [String(field.key), field])), [fields]);
+  const discount = getModelDraftDiscount(draft);
+  const [unifiedDiscountDraft, setUnifiedDiscountDraft] = React.useState(String(discount));
+  const unifiedDiscountFocusedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!unifiedDiscountFocusedRef.current) {
+      setUnifiedDiscountDraft(String(discount));
+    }
+  }, [discount]);
+
+  function updateDraftValue(key: string, value: string | number) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function applyDiscount(value: number) {
+    const ratio = Math.max(0, value) / 100;
+    setDraft((current) => {
+      const inputBase = getModelOriginalPrice(current, "originalInputPrice", "inputPrice");
+      const outputBase = getModelOriginalPrice(current, "originalOutputPrice", "outputPrice");
+      const cacheBase = getModelOriginalPrice(current, "originalCachePrice", "cachePrice");
+
+      return {
+        ...current,
+        originalInputPrice: inputBase,
+        originalOutputPrice: outputBase,
+        originalCachePrice: cacheBase,
+        inputPrice: roundPrice(inputBase * ratio),
+        outputPrice: roundPrice(outputBase * ratio),
+        cachePrice: roundPrice(cacheBase * ratio),
+      };
+    });
+  }
+
+  return (
+    <div className="space-y-8">
+      <section className="rounded-2xl border border-slate-200 bg-slate-50/60 px-5 py-5">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <ModelStackedField icon={Building2} label="厂商">
+            <ModelTextInput
+              ariaLabel="厂商"
+              value={String(draft.provider ?? "")}
+              onChange={(value) => updateDraftValue("provider", value)}
+              required={fieldMap.provider?.required}
+            />
+          </ModelStackedField>
+          <ModelStackedField icon={Tags} label="模型名称">
+            <ModelTextInput
+              ariaLabel="模型名称"
+              value={String(draft.name ?? "")}
+              onChange={(value) => updateDraftValue("name", value)}
+              required={fieldMap.name?.required}
+            />
+          </ModelStackedField>
+          <ModelStackedField icon={CreditCard} label="计费类型">
+            {fieldMap.billingType ? (
+              <Select
+                className="h-12 rounded-full border-slate-200 bg-white pl-5 pr-12 text-base font-bold text-slate-800 shadow-sm shadow-slate-100 focus:border-[#1155ff] focus:ring-blue-100"
+                value={String(draft.billingType ?? "按量计费")}
+                onChange={(event) => updateDraftValue("billingType", event.target.value)}
+              >
+                {(fieldMap.billingType.options ?? []).map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </Select>
+            ) : null}
+          </ModelStackedField>
+          <ModelStackedField icon={Cpu} label="模型类型">
+            {fieldMap.type ? (
+              <Select
+                className="h-12 rounded-full border-slate-200 bg-white pl-5 pr-12 text-base font-bold text-slate-800 shadow-sm shadow-slate-100 focus:border-[#1155ff] focus:ring-blue-100"
+                value={String(draft.type ?? "对话补全")}
+                onChange={(event) => updateDraftValue("type", event.target.value)}
+              >
+                {(fieldMap.type.options ?? []).map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </Select>
+            ) : null}
+          </ModelStackedField>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <Coins className="size-5 text-[#2f80ed]" />
+            <h4 className="text-lg font-bold text-slate-900">定价（每1M Tokens）</h4>
+            <span className="rounded-full bg-blue-50 px-4 py-1.5 text-sm font-bold text-[#1155ff]">原价 / 售价</span>
+          </div>
+          <label className="inline-flex h-12 w-full items-center gap-3 rounded-full border border-slate-200 bg-white px-4 shadow-md shadow-slate-200/60 lg:w-auto">
+            <Percent className="size-5 text-[#2f80ed]" />
+            <span className="shrink-0 text-sm font-bold text-slate-700">统一折扣</span>
+            <Input
+              aria-label="统一折扣"
+              className="h-9 w-24 rounded-full bg-slate-50 px-4 text-center text-base font-bold focus:border-[#1155ff] focus:ring-blue-100"
+              min={0}
+              type="number"
+              value={unifiedDiscountDraft}
+              onBlur={() => {
+                unifiedDiscountFocusedRef.current = false;
+                const nextDiscount = Number(unifiedDiscountDraft || 0);
+                applyDiscount(nextDiscount);
+                setUnifiedDiscountDraft(String(nextDiscount));
+              }}
+              onChange={(event) => setUnifiedDiscountDraft(event.target.value)}
+              onFocus={() => {
+                unifiedDiscountFocusedRef.current = true;
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+            <span className="text-base font-bold text-slate-500">%</span>
+          </label>
+        </div>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+          <ModelPriceEditor
+            icon={LogIn}
+            label="输入"
+            originalValue={getModelOriginalPrice(draft, "originalInputPrice", "inputPrice")}
+            saleValue={Number(draft.inputPrice || 0)}
+            onOriginalChange={(value) => updateDraftValue("originalInputPrice", value)}
+            onSaleChange={(value) => updateDraftValue("inputPrice", value)}
+            onDiscountChange={(value) => updateDraftValue("inputPrice", roundPrice(getModelOriginalPrice(draft, "originalInputPrice", "inputPrice") * Math.max(0, value) / 100))}
+          />
+          <ModelPriceEditor
+            icon={LogOut}
+            label="输出"
+            originalValue={getModelOriginalPrice(draft, "originalOutputPrice", "outputPrice")}
+            saleValue={Number(draft.outputPrice || 0)}
+            onOriginalChange={(value) => updateDraftValue("originalOutputPrice", value)}
+            onSaleChange={(value) => updateDraftValue("outputPrice", value)}
+            onDiscountChange={(value) => updateDraftValue("outputPrice", roundPrice(getModelOriginalPrice(draft, "originalOutputPrice", "outputPrice") * Math.max(0, value) / 100))}
+          />
+          <ModelPriceEditor
+            icon={Database}
+            label="缓存"
+            originalValue={getModelOriginalPrice(draft, "originalCachePrice", "cachePrice")}
+            saleValue={Number(draft.cachePrice || 0)}
+            onOriginalChange={(value) => updateDraftValue("originalCachePrice", value)}
+            onSaleChange={(value) => updateDraftValue("cachePrice", value)}
+            onDiscountChange={(value) => updateDraftValue("cachePrice", roundPrice(getModelOriginalPrice(draft, "originalCachePrice", "cachePrice") * Math.max(0, value) / 100))}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-3">
+          <Tags className="size-5 text-[#2f80ed]" />
+          <h4 className="text-lg font-bold text-slate-900">模型能力标签</h4>
+        </div>
+        {fieldMap.abilities ? (
+          <FieldInput field={fieldMap.abilities} value={draft.abilities ?? ""} onChange={(value) => updateDraftValue("abilities", value)} />
+        ) : null}
+        <p className="flex items-center gap-2 text-sm font-semibold text-slate-400">
+          <Info className="size-4 text-amber-400" />
+          添加描述模型能力的标签，方便用户筛选（如：对话补全、多模态、函数调用等）
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function ModelStackedField({ icon: Icon, label, children }: { icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; label: string; children: React.ReactNode }) {
+  return (
+    <label className="block min-w-0 space-y-2">
+      <span className="flex items-center gap-2 text-base font-bold text-slate-700">
+        <Icon className="size-5 text-slate-500" />
+        <span>{label}</span>
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function ModelTextInput({
+  ariaLabel,
+  value,
+  onChange,
+  prefix,
+  required,
+}: {
+  ariaLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  prefix?: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <label className="relative block">
+      {prefix ? <span className="pointer-events-none absolute left-2 top-1/2 flex -translate-y-1/2 items-center">{prefix}</span> : null}
+      <Input
+        aria-label={ariaLabel}
+        className={`h-12 rounded-full border-slate-200 bg-white text-base font-bold text-slate-800 shadow-sm shadow-slate-100 focus:border-[#1155ff] focus:ring-blue-100 ${prefix ? "pl-14" : "pl-5"}`}
+        required={required}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function ModelPriceEditor({
+  icon: Icon,
+  label,
+  originalValue,
+  saleValue,
+  onOriginalChange,
+  onSaleChange,
+  onDiscountChange,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  label: string;
+  originalValue: number;
+  saleValue: number;
+  onOriginalChange: (value: number) => void;
+  onSaleChange: (value: number) => void;
+  onDiscountChange: (value: number) => void;
+}) {
+  const discount = originalValue > 0 ? Math.round((saleValue / originalValue) * 100) : 100;
+  const [discountDraft, setDiscountDraft] = React.useState(String(discount));
+  const discountFocusedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!discountFocusedRef.current) {
+      setDiscountDraft(String(discount));
+    }
+  }, [discount]);
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm shadow-slate-100">
+      <div className="flex items-center gap-3 text-lg font-bold text-slate-800">
+        <Icon className="size-5 text-[#2f80ed]" strokeWidth={2.4} />
+        <span>{label}</span>
+      </div>
+      <ModelPricePairInput
+        label={label}
+        originalValue={originalValue}
+        saleValue={saleValue}
+        onOriginalChange={onOriginalChange}
+        onSaleChange={onSaleChange}
+      />
+      <div className="mt-3 flex items-center gap-2 text-base font-bold text-slate-500">
+        <Info className="size-4 text-[#2f80ed]" />
+        <span>售价</span>
+        <Input
+          aria-label={`${label}售价折扣`}
+          className="h-8 w-16 rounded-none border-0 border-b border-dashed border-slate-300 bg-transparent px-2 text-center text-base font-bold text-slate-800 shadow-none focus:border-[#1155ff] focus:ring-0"
+          min={0}
+          type="number"
+          value={discountDraft}
+          onBlur={() => {
+            discountFocusedRef.current = false;
+            const nextDiscount = Number(discountDraft || 0);
+            onDiscountChange(nextDiscount);
+            setDiscountDraft(String(nextDiscount));
+          }}
+          onChange={(event) => setDiscountDraft(event.target.value)}
+          onFocus={() => {
+            discountFocusedRef.current = true;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+          }}
+        />
+        <span>折</span>
+      </div>
+    </article>
+  );
+}
+
+function ModelPricePairInput({
+  label,
+  originalValue,
+  saleValue,
+  onOriginalChange,
+  onSaleChange,
+}: {
+  label: string;
+  originalValue: number;
+  saleValue: number;
+  onOriginalChange: (value: number) => void;
+  onSaleChange: (value: number) => void;
+}) {
+  return (
+    <div className="mt-4 grid h-12 grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-inner shadow-slate-100">
+      <label className="relative min-w-0">
+        <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-lg font-bold text-slate-400">¥</span>
+        <Input
+          aria-label={`${label}原价`}
+          className="h-full rounded-none border-0 bg-transparent pl-9 pr-2 text-lg font-bold text-slate-500 line-through shadow-none focus:border-transparent focus:ring-0"
+          min={0}
+          step="0.01"
+          type="number"
+          value={String(originalValue)}
+          onChange={(event) => onOriginalChange(Number(event.target.value || 0))}
+        />
+      </label>
+      <label className="relative m-1 min-w-0 overflow-hidden rounded-full bg-[#0b3972] shadow-md shadow-blue-900/20">
+        <Zap className="pointer-events-none absolute left-4 top-1/2 z-10 size-4 -translate-y-1/2 text-white" fill="currentColor" />
+        <span className="pointer-events-none absolute left-10 top-1/2 z-10 -translate-y-1/2 text-lg font-bold text-white/85">¥</span>
+      <Input
+        aria-label={`${label}售价`}
+        className="h-full rounded-full border-0 bg-transparent pl-16 pr-3 text-lg font-bold text-white shadow-none focus:border-transparent focus:ring-0"
+        min={0}
+        step="0.01"
+        type="number"
+        value={String(saleValue)}
+        onChange={(event) => onSaleChange(Number(event.target.value || 0))}
+      />
+      </label>
+    </div>
+  );
+}
+
+function getModelOriginalPrice(draft: Record<string, string | number>, originalKey: string, saleKey: string) {
+  const original = Number(draft[originalKey] || 0);
+  const sale = Number(draft[saleKey] || 0);
+  if (original > 0) {
+    return Math.max(original, sale, 0);
+  }
+
+  return sale > 0 ? roundPrice(sale / 0.85) : 0;
+}
+
+function getModelDraftDiscount(draft: Record<string, string | number>) {
+  const pairs = [
+    ["originalInputPrice", "inputPrice"],
+    ["originalOutputPrice", "outputPrice"],
+    ["originalCachePrice", "cachePrice"],
+  ] as const;
+  const ratios = pairs
+    .map(([originalKey, saleKey]) => {
+      const original = getModelOriginalPrice(draft, originalKey, saleKey);
+      const sale = Number(draft[saleKey] || 0);
+      return original > 0 ? sale / original : null;
+    })
+    .filter((ratio): ratio is number => typeof ratio === "number" && Number.isFinite(ratio));
+
+  if (ratios.length === 0) {
+    return 100;
+  }
+
+  return Math.round((ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length) * 100);
+}
+
+function roundPrice(value: number) {
+  return Number(value.toFixed(2));
 }
 
 function ModelPrice({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
