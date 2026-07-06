@@ -113,7 +113,6 @@ export const pageConfigs = {
       { key: "costInputPrice", label: "成本输入价（¥/1M Tokens）", kind: "number" },
       { key: "costOutputPrice", label: "成本输出价（¥/1M Tokens）", kind: "number" },
       { key: "abilities", label: "模型能力", placeholder: "多个能力用逗号分隔" },
-      { key: "status", label: "状态", kind: "select", options: ["可用", "维护中"] },
     ],
   } satisfies RecordPageConfig,
   products: {

@@ -1144,8 +1144,8 @@ function EnterpriseModelCardGrid({
                   </p>
                 </div>
               </div>
-              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
-                {model.status}
+              <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-[#1155ff]">
+                {model.billingType}
               </span>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
@@ -1160,10 +1160,6 @@ function EnterpriseModelCardGrid({
               <EnterpriseModelPrice
                 label="缓存价格"
                 value={`${formatCurrency(model.cachePrice)}/1M`}
-              />
-              <EnterpriseModelPrice
-                label="计费类型"
-                value={model.billingType}
               />
             </div>
             <div className="mt-5 flex min-h-8 flex-wrap gap-2">

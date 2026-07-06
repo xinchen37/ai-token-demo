@@ -664,8 +664,6 @@ function ModelCardGrid({ records, onDetail, onEdit }: { records: BaseRecord[]; o
         const type = String(getRecordValue(record, "type") ?? "-");
         const billingType = String(getRecordValue(record, "billingType") ?? "-");
         const abilities = String(getRecordValue(record, "abilities") ?? "");
-        const status = String(getRecordValue(record, "status") ?? "-");
-        const isAvailable = status === "可用";
         const abilityTags = abilities.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 4);
 
         return (
@@ -678,8 +676,8 @@ function ModelCardGrid({ records, onDetail, onEdit }: { records: BaseRecord[]; o
                   <p className="mt-1 truncate text-sm text-slate-500">{provider} · {type}</p>
                 </div>
               </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${isAvailable ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
-                {status}
+              <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-[#1155ff]">
+                {billingType}
               </span>
             </div>
 
@@ -687,9 +685,6 @@ function ModelCardGrid({ records, onDetail, onEdit }: { records: BaseRecord[]; o
               <ModelPrice label="输入价格" value={`${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M`} />
               <ModelPrice label="输出价格" value={`${formatCurrency(Number(getRecordValue(record, "outputPrice") ?? 0))}/1M`} />
               <ModelPrice label="缓存价格" value={`${formatCurrency(Number(getRecordValue(record, "cachePrice") ?? 0))}/1M`} />
-              <ModelPrice label="计费类型" value={billingType} />
-              <ModelPrice label="成本输入" value={`${formatCurrency(Number(getRecordValue(record, "costInputPrice") ?? 0))}/1M`} muted />
-              <ModelPrice label="成本输出" value={`${formatCurrency(Number(getRecordValue(record, "costOutputPrice") ?? 0))}/1M`} muted />
             </div>
 
             <div className="mt-5 flex min-h-8 flex-wrap gap-2">
@@ -721,7 +716,6 @@ function ModelDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; on
   const type = String(getRecordValue(record, "type") ?? "-");
   const billingType = String(getRecordValue(record, "billingType") ?? "-");
   const abilities = String(getRecordValue(record, "abilities") ?? "-");
-  const status = String(getRecordValue(record, "status") ?? "-");
   const fields = [
     { label: "厂商", value: provider },
     { label: "模型名称", value: <ModelNameWithLogo record={record} logoSize="sm" /> },
@@ -733,7 +727,6 @@ function ModelDetailDialog({ record, onClose, onEdit }: { record: BaseRecord; on
     { label: "成本输出价", value: `${formatCurrency(Number(getRecordValue(record, "costOutputPrice") ?? 0))}/1M Tokens` },
     { label: "计费类型", value: billingType },
     { label: "模型能力", value: abilities },
-    { label: "状态", value: status },
     { label: "创建时间", value: record.createdAt },
     { label: "最后修改时间", value: record.updatedAt },
   ];
