@@ -1610,11 +1610,6 @@ function EnterpriseProductCardGrid({
                   </span>
                 ))}
               </div>
-              {contract ? (
-                <div className="mt-5 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-                  合同 {contract.contractNo} · {contract.status}
-                </div>
-              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-4 border-t border-slate-100 p-5">
               {getProductStats(product).map((item) => (
@@ -1904,21 +1899,14 @@ function EnterpriseProductBadge({
             : "bg-amber-50 text-amber-600",
         )}
       >
-        已购买 · {contract.status}
+        已购买
       </span>
     );
   }
 
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-        product.status === "上架"
-          ? "bg-blue-50 text-[#1155ff]"
-          : "bg-slate-100 text-slate-500",
-      )}
-    >
-      {product.status}
+    <span className="inline-flex shrink-0 items-center px-2.5 py-1 text-xs font-semibold text-slate-400">
+      未购买
     </span>
   );
 }

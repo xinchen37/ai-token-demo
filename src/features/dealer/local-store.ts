@@ -6,7 +6,7 @@ import { createId, getCurrentDateTime } from "./dealer-utils";
 const STORAGE_KEY = "omni-ai-dealer-data-v1";
 const ALLOWED_MODEL_NAMES = ["DeepSeek-R1", "Qwen-Max", "Seedance Video 2.0", "GLM-4-Plus"];
 const allowedModelNameSet = new Set(ALLOWED_MODEL_NAMES);
-const removedSeedProductIds = new Set(["prod-104", "prod-105", "prod-106"]);
+const removedSeedProductIds = new Set(["prod-102", "prod-103", "prod-104", "prod-105", "prod-106"]);
 const legacyModelNameMap: Record<string, string> = {
   "Omni-GPT-4-Turbo": "DeepSeek-R1",
   "Omni-GPT-3.5-Fast": "DeepSeek-R1",
