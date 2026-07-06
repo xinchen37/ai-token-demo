@@ -689,12 +689,18 @@ function Dashboard({
   customer: Customer;
   onPageChange: (page: EnterprisePageKey) => void;
 }) {
+  void onPageChange;
   const [trendMetric, setTrendMetric] = React.useState<TrendMetric>("amount");
   const [trendRange, setTrendRange] = React.useState<TrendRange>("today");
+  const [rankingRange, setRankingRange] = React.useState<TrendRange>("last30");
   const records = getCustomerConsumptions(data, customer);
   const dashboardRecords = React.useMemo(
     () => buildEnterpriseDashboardRecords(data, customer, records),
     [data, customer, records],
+  );
+  const rankingRecords = React.useMemo(
+    () => filterRecordsByRange(dashboardRecords, rankingRange, getDashboardNow()),
+    [dashboardRecords, rankingRange],
   );
   const keys = getCustomerApiKeys(data, customer);
   const bills = getCustomerBills(data, customer);
@@ -706,7 +712,7 @@ function Dashboard({
         items: buildEnterpriseRanking(
           data,
           customer,
-          dashboardRecords,
+          rankingRecords,
           "model",
           3,
         ),
@@ -717,13 +723,13 @@ function Dashboard({
         items: buildEnterpriseRanking(
           data,
           customer,
-          dashboardRecords,
+          rankingRecords,
           "employee",
           3,
         ),
       },
     ],
-    [data, customer, dashboardRecords],
+    [data, customer, rankingRecords],
   );
   const trendSeries = React.useMemo(
     () =>
@@ -797,11 +803,13 @@ function Dashboard({
       <section className="grid gap-8 2xl:grid-cols-[1fr_360px]">
         <div className="space-y-8">
           <div>
-            <SectionTitle icon={LineChart} title="模型数据分析" />
+            <div className="flex items-center justify-between gap-4">
+              <SectionTitle icon={LineChart} title="模型数据分析" />
+              <RangeTabs value={trendRange} onChange={setTrendRange} />
+            </div>
             <div className="mt-4 rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <MetricTabs value={trendMetric} onChange={setTrendMetric} />
-                <RangeTabs value={trendRange} onChange={setTrendRange} />
               </div>
               <TrendChart
                 metric={trendMetric}
@@ -814,13 +822,7 @@ function Dashboard({
           <div>
             <div className="flex items-center justify-between">
               <SectionTitle icon={Trophy} title="排行榜" />
-              <button
-                className="text-sm font-medium text-[#1155ff]"
-                onClick={() => onPageChange("consumptions")}
-                type="button"
-              >
-                查看明细
-              </button>
+              <RankingRangeTabs value={rankingRange} onChange={setRankingRange} />
             </div>
             <div className="mt-4 grid gap-4 xl:grid-cols-2">
               {rankingGroups.map((group) => (
