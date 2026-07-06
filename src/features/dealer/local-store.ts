@@ -4,6 +4,17 @@ import type { BaseRecord, DealerData, EntityKey, EntityRecord } from "./types";
 import { createId, getCurrentDateTime } from "./dealer-utils";
 
 const STORAGE_KEY = "omni-ai-dealer-data-v1";
+const ALLOWED_MODEL_NAMES = ["DeepSeek-R1", "Qwen-Max", "Seedance Video 2.0", "GLM-4-Plus"];
+const allowedModelNameSet = new Set(ALLOWED_MODEL_NAMES);
+const removedSeedProductIds = new Set(["prod-104", "prod-105", "prod-106"]);
+const legacyModelNameMap: Record<string, string> = {
+  "Omni-GPT-4-Turbo": "DeepSeek-R1",
+  "Omni-GPT-3.5-Fast": "DeepSeek-R1",
+  "Omni-Vision-Pro": "Seedance Video 2.0",
+  "Omni-Draw-v2": "Seedance Video 2.0",
+  "Embed-Core": "GLM-4-Plus",
+  "Speech-to-Text-Lite": "Qwen-Max",
+};
 
 export function loadDealerData(): DealerData {
   const rawValue = window.localStorage.getItem(STORAGE_KEY);
@@ -256,9 +267,33 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
     customerLoginAccounts.has(member.loginAccount) ? { ...member, role: "所有者" } : member,
   );
   const nextEnterpriseRoles = mergeById(normalizedData.enterpriseRoles, dealerSeedData.enterpriseRoles);
+  const nextModels = mergeById(normalizedData.models, dealerSeedData.models).filter((model) => allowedModelNameSet.has(model.name));
+  const nextProducts = mergeById(normalizedData.products, dealerSeedData.products)
+    .filter((product) => !removedSeedProductIds.has(product.id))
+    .map((product) => {
+      const productWithAllowedModels = normalizeProductModels(product);
+      if (
+        productWithAllowedModels.id === "prod-001" &&
+        productWithAllowedModels.name === "通用对话套餐-标准版" &&
+        productWithAllowedModels.monthlyFee === 19800 &&
+        productWithAllowedModels.tokenLimitM === "1000" &&
+        productWithAllowedModels.monthlyTokenM === "1000"
+      ) {
+        return {
+          ...productWithAllowedModels,
+          tokenLimitM: "不限",
+          monthlyTokenM: "不限",
+          monthlyFee: 200,
+          discount: 90,
+        };
+      }
+      return productWithAllowedModels;
+    });
 
   return {
     ...normalizedData,
+    models: nextModels,
+    products: nextProducts,
     members: nextMembers,
     roles: nextRoles,
     enterpriseMembers: nextEnterpriseMembers,
@@ -274,6 +309,57 @@ function mergeById<T extends { id: string }>(current: T[], seed: T[]) {
     }
   }
   return nextItems;
+}
+
+function normalizeProductModels(product: DealerData["products"][number]) {
+  const relatedModels = sanitizeModelNames(product.relatedModels);
+  const modelConfigs = sanitizeModelConfigs(product.modelConfigs);
+  return {
+    ...product,
+    relatedModels,
+    ...(modelConfigs ? { modelConfigs } : {}),
+  };
+}
+
+function sanitizeModelNames(value: string) {
+  const modelNames = value
+    .split(",")
+    .map((item) => legacyModelNameMap[item.trim()] ?? item.trim())
+    .filter((item) => allowedModelNameSet.has(item));
+
+  const uniqueNames = Array.from(new Set(modelNames));
+  return (uniqueNames.length > 0 ? uniqueNames : ["DeepSeek-R1"]).join(",");
+}
+
+function sanitizeModelConfigs(value?: string) {
+  if (!value) {
+    return value;
+  }
+
+  try {
+    const rows = JSON.parse(value) as Array<{ modelNames?: string[] } & Record<string, unknown>>;
+    if (!Array.isArray(rows)) {
+      return value;
+    }
+    return JSON.stringify(
+      rows.map((row) => {
+        const modelNames = Array.isArray(row.modelNames) ? row.modelNames : [];
+        const sanitizedNames = Array.from(
+          new Set(
+            modelNames
+              .map((item) => legacyModelNameMap[String(item).trim()] ?? String(item).trim())
+              .filter((item) => allowedModelNameSet.has(item)),
+          ),
+        );
+        return {
+          ...row,
+          modelNames: sanitizedNames.length > 0 ? sanitizedNames : ["DeepSeek-R1"],
+        };
+      }),
+    );
+  } catch {
+    return value;
+  }
 }
 
 function mergeCsvPermissions(value: string, permission: string) {
