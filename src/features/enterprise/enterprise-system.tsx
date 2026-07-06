@@ -3194,31 +3194,34 @@ function TeamReports({
   return (
     <div className="space-y-4">
       <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100">
-        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="w-44 shrink-0">
-              <Select
-                className="h-10"
-                value={memberAccount}
-                onChange={(event) => setMemberAccount(event.target.value)}
-              >
-                <option>全部员工</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.loginAccount}>
-                    {member.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <RangeButtonGroup
-              items={[
-                { label: "近7天", value: "last7" },
-                { label: "近30天", value: "last30" },
-                { label: "自定义", value: "custom" },
-              ]}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-44 shrink-0">
+            <Select
+              className="h-10"
+              value={memberAccount}
+              onChange={(event) => setMemberAccount(event.target.value)}
+            >
+              <option>全部员工</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.loginAccount}>
+                  {member.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="w-40 shrink-0">
+            <Select
+              className="h-10"
               value={range}
-              onChange={setRange}
-            />
+              onChange={(event) =>
+                setRange(event.target.value as TeamReportRange)
+              }
+            >
+              <option value="last7">近7天</option>
+              <option value="last30">近30天</option>
+              <option value="custom">自定义</option>
+            </Select>
+          </div>
             {range === "custom" ? (
               <>
                 <DatePickerInput
@@ -3235,17 +3238,14 @@ function TeamReports({
                 />
               </>
             ) : null}
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button variant="secondary">
-              <Download className="size-4" />
-              导出
-            </Button>
-            <Button variant="secondary" onClick={resetFilters}>
-              <RotateCcw className="size-4" />
-              重置
-            </Button>
-          </div>
+          <Button className="shrink-0" variant="secondary">
+            <Download className="size-4" />
+            导出
+          </Button>
+          <Button className="shrink-0" variant="secondary" onClick={resetFilters}>
+            <RotateCcw className="size-4" />
+            重置
+          </Button>
         </div>
       </section>
       <SimpleTable
