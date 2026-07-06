@@ -385,6 +385,7 @@ function StatsReport({
           <ReportTrendChart
             title={activeTrend.title}
             metric={activeTrend.metric}
+            range={trendRange}
             points={activeTrend.points}
           />
         </div>
@@ -618,46 +619,55 @@ function ReportTrendMetricTabs({
 function ReportTrendChart({
   metric,
   points,
+  range,
   title,
 }: {
   metric: ReportTrendMetric;
   points: Array<{ label: string; value: number }>;
+  range: ReportTrendRange;
   title: string;
 }) {
   const chartRef = React.useRef<HTMLDivElement>(null);
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
   const [chartWidth, setChartWidth] = React.useState(1200);
-  const chartHeight = 380;
+  const chartHeight = 320;
   const plot = getReportTrendPlot(chartWidth);
   const maxValue = Math.max(...points.map((point) => point.value), 1);
-  const chartMax = maxValue * 1.08;
+  const axisMax = getNiceTrendAxisMax(maxValue);
+  const yLabels = Array.from({ length: 5 }, (_, index) =>
+    Math.round((axisMax / 4) * (4 - index)),
+  );
   const polylinePoints = points
     .map((point, index) => {
       const { x, y } = getReportTrendPoint(
         point,
         index,
         points.length,
-        chartMax,
+        axisMax,
         plot,
       );
       return `${x},${y}`;
     })
     .join(" ");
-  const labelStep = points.length > 12 ? Math.ceil(points.length / 7) : 1;
-  const labelCandidates = points
-    .map((point, index) => ({ point, index }))
-    .filter(
-      ({ index }) =>
-        index === 0 || index === points.length - 1 || index % labelStep === 0,
-    );
-  const minLabelGap = 96;
+  const labelCandidates = points.flatMap((point, index) => {
+    const step =
+      range === "today"
+        ? 2
+        : points.length > 12
+          ? Math.ceil(points.length / 8)
+          : 1;
+    return index % step === 0 || index === points.length - 1
+      ? [{ point, index }]
+      : [];
+  });
   const visibleLabels = labelCandidates.reduce<Array<(typeof labelCandidates)[number]>>(
     (labels, candidate) => {
+      const minLabelGap = range === "today" ? 56 : 74;
       const candidateX = getReportTrendPoint(
         candidate.point,
         candidate.index,
         points.length,
-        chartMax,
+        axisMax,
         plot,
       ).x;
       const previous = labels.at(-1);
@@ -668,7 +678,7 @@ function ReportTrendChart({
         previous.point,
         previous.index,
         points.length,
-        chartMax,
+        axisMax,
         plot,
       ).x;
 
@@ -691,7 +701,7 @@ function ReportTrendChart({
           points[hoveredIndex],
           hoveredIndex,
           points.length,
-          chartMax,
+          axisMax,
           plot,
         );
 
@@ -700,7 +710,7 @@ function ReportTrendChart({
     if (!element) return;
 
     const updateWidth = () =>
-      setChartWidth(Math.max(760, Math.round(element.clientWidth)));
+      setChartWidth(Math.max(720, Math.round(element.clientWidth)));
     updateWidth();
 
     if (typeof ResizeObserver === "undefined") return;
@@ -710,7 +720,7 @@ function ReportTrendChart({
   }, []);
 
   return (
-    <div ref={chartRef} className="mt-8 h-[380px] overflow-hidden">
+    <div ref={chartRef} className="mt-8 h-[320px] overflow-hidden">
       {points.length === 0 ? (
         <div className="py-8 text-center text-sm text-slate-400">暂无数据</div>
       ) : (
@@ -720,36 +730,22 @@ function ReportTrendChart({
           role="img"
           aria-label={title}
         >
-          {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-            const y = plot.bottom - tick * (plot.bottom - plot.top);
-            return (
-              <g key={tick}>
-                <line
-                  x1={plot.left}
-                  x2={plot.right}
-                  y1={y}
-                  y2={y}
-                  stroke="#eef1f5"
-                />
-                <text
-                  x={plot.left - 14}
-                  y={y + 6}
-                  fill="#9aa4b2"
-                  fontSize="14"
-                  fontWeight="600"
-                  textAnchor="end"
-                >
-                  {formatReportTrendAxisValue(chartMax * tick, metric)}
-                </text>
-              </g>
-            );
-          })}
+          {[55, 105, 155, 205, 255].map((y) => (
+            <line
+              key={y}
+              x1={plot.left}
+              x2={plot.right}
+              y1={y}
+              y2={y}
+              stroke="#eef1f5"
+            />
+          ))}
           {points.map((point, index) => {
             const { x } = getReportTrendPoint(
               point,
               index,
               points.length,
-              chartMax,
+              axisMax,
               plot,
             );
             return (
@@ -767,16 +763,14 @@ function ReportTrendChart({
             points={polylinePoints}
             fill="none"
             stroke="#3a6fff"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            strokeWidth="2.5"
           />
           {points.map((point, index) => {
             const { x, y } = getReportTrendPoint(
               point,
               index,
               points.length,
-              chartMax,
+              axisMax,
               plot,
             );
             const isHovered = hoveredIndex === index;
@@ -789,13 +783,13 @@ function ReportTrendChart({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isHovered ? "5.5" : "4"}
+                  r={isHovered ? "5" : "3"}
                   fill="#3a6fff"
                 />
                 <circle
                   cx={x}
                   cy={y}
-                  r="18"
+                  r="14"
                   fill="transparent"
                   className="cursor-pointer"
                 />
@@ -815,11 +809,11 @@ function ReportTrendChart({
               <foreignObject
                 x={Math.min(
                   Math.max(hoveredPoint.x + 12, plot.left),
-                  plot.right - 210,
+                  plot.right - 190,
                 )}
-                y={Math.max(hoveredPoint.y - 78, plot.top)}
-                width="200"
-                height="76"
+                y={Math.max(hoveredPoint.y - 76, plot.top)}
+                width="180"
+                height="72"
               >
                 <div className="rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
                   <div className="font-semibold text-slate-950">
@@ -838,12 +832,24 @@ function ReportTrendChart({
               </foreignObject>
             </g>
           ) : null}
+          {yLabels.map((label, index) => (
+            <text
+              key={`${label}-${index}`}
+              x={plot.left - 14}
+              y={62 + index * 50}
+              fill="#9ca3af"
+              fontSize="12"
+              textAnchor="end"
+            >
+              {formatReportTrendAxisValue(label, metric)}
+            </text>
+          ))}
           {visibleLabels.map(({ point, index }) => {
             const { x } = getReportTrendPoint(
               point,
               index,
               points.length,
-              chartMax,
+              axisMax,
               plot,
             );
             const isFirst = index === 0;
@@ -858,10 +864,9 @@ function ReportTrendChart({
                       ? Math.min(x, plot.right)
                       : x
                 }
-                y={chartHeight - 18}
-                fill="#9aa4b2"
-                fontSize="14"
-                fontWeight="600"
+                y="300"
+                fill="#9ca3af"
+                fontSize="13"
                 textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
               >
                 {point.label}
@@ -891,10 +896,10 @@ function getReportTrendPoint(
 
 function getReportTrendPlot(chartWidth: number) {
   return {
-    top: 28,
-    bottom: 322,
-    left: 82,
-    right: chartWidth - 26,
+    top: 36,
+    bottom: 270,
+    left: 76,
+    right: chartWidth - 8,
   };
 }
 
@@ -905,9 +910,9 @@ function getTrendMetricLabel(metric: ReportTrendMetric) {
 }
 
 function formatReportTrendAxisValue(value: number, metric: ReportTrendMetric) {
-  if (metric === "amount") return formatCurrencyCompact(value);
+  if (metric === "amount") return formatCurrencyAxis(value);
   if (metric === "tokens") return formatTokenAxis(value);
-  return `${Math.round(value)}`;
+  return String(value);
 }
 
 function formatReportTrendTooltipValue(
@@ -919,16 +924,32 @@ function formatReportTrendTooltipValue(
   return `${formatNumber(value)} 次`;
 }
 
-function formatCurrencyCompact(value: number) {
-  if (value >= 10_000) return `${trimMetricNumber(value / 10_000, 1)}万`;
-  if (value >= 1_000) return `${trimMetricNumber(value / 1_000, 1)}k`;
-  return `${Math.round(value)}`;
+function getNiceTrendAxisMax(value: number) {
+  if (value <= 0) return 1;
+  const padded = value * 1.12;
+  const exponent = Math.floor(Math.log10(padded));
+  const magnitude = 10 ** exponent;
+  const normalized = padded / magnitude;
+  const niceNormalized =
+    normalized <= 1
+      ? 1
+      : normalized <= 2
+        ? 2
+        : normalized <= 5
+          ? 5
+          : 10;
+  return niceNormalized * magnitude;
+}
+
+function formatCurrencyAxis(value: number) {
+  if (value >= 10_000) return `¥${trimMetricNumber(value / 10_000, 1)}万`;
+  if (value >= 1_000) return `¥${trimMetricNumber(value / 1_000, 1)}k`;
+  return `¥${Math.round(value)}`;
 }
 
 function formatTokenAxis(value: number) {
   if (value >= 100_000_000)
     return `${trimMetricNumber(value / 100_000_000, 1)}亿`;
-  if (value >= 1_000_000) return `${trimMetricNumber(value / 1_000_000, 0)}M`;
   if (value >= 10_000) return `${trimMetricNumber(value / 10_000, 0)}万`;
   return `${Math.round(value)}`;
 }
@@ -1253,7 +1274,7 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
 
         const model = data.models.find((item) => item.name === modelName);
         const modelType = model?.type ?? "对话补全";
-        const baseInputTokens = modelType === "视频" ? 1_600_000 : 24_000_000;
+        const baseInputTokens = modelType === "视频" ? 2_600_000 : 38_000_000;
         const customerFactor =
           customer.status === "正常"
             ? 1
@@ -1270,7 +1291,7 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
           stableNumber(`${customer.id}-${modelName}-noise-${dayIndex}`, 16) /
           100;
         const inputTokens = Math.max(
-          180_000,
+          260_000,
           Math.round(
             baseInputTokens * customerFactor * modelFactor * (dayWave + noise),
           ),
@@ -1486,6 +1507,11 @@ function buildReportTrendTimeSeries(
   }
 
   const start = startOfDay(now);
+  const end = addDays(start, 1);
+  const todayRecords = records.filter((record) => {
+    const calledAt = parseLocalDateTime(record.calledAt);
+    return calledAt >= start && calledAt < end;
+  });
   const hourCount = now.getHours() + 1;
   const buckets = Array.from({ length: hourCount }, (_, index) => {
     const hourStart = addHours(start, index);
@@ -1502,7 +1528,7 @@ function buildReportTrendTimeSeries(
     };
   });
 
-  addRecordsToTimeBuckets(records, buckets);
+  addRecordsToTimeBuckets(todayRecords, buckets);
 
   return mapTimeBuckets(buckets);
 }
