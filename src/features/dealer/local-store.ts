@@ -287,6 +287,20 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
           discount: 90,
         };
       }
+      if (
+        productWithAllowedModels.id === "prod-002" &&
+        productWithAllowedModels.name === "视频生成体验包"
+      ) {
+        return {
+          ...productWithAllowedModels,
+          packageMode: "按量包月" as const,
+          inputPrice: 1500,
+          tokenLimitM: "200",
+          monthlyTokenM: "200",
+          monthlyFee: 1500,
+          billingMode: "按量" as const,
+        };
+      }
       return productWithAllowedModels;
     });
 
