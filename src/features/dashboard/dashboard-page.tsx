@@ -18,7 +18,8 @@ interface DashboardPageProps {
   tasks: Task[];
 }
 
-const chartPoints = "45,70 95,70 145,92 195,92 245,130 295,130 345,92 395,92 445,130 495,120";
+const chartPoints =
+  "45,70 95,70 145,92 195,92 245,130 295,130 345,92 395,92 445,130 495,120";
 const chartFuture = "545,102 595,82 645,100 695,100 745,80 795,80 845,80";
 const ranking = [
   { name: "DeepSeek V4 Flash", value: 8200, color: "bg-[#1155ff]" },
@@ -32,8 +33,13 @@ const ranking = [
 ];
 
 export function DashboardPage({ tasks }: DashboardPageProps) {
-  const stats = calculateTaskStats(tasks, new Date("2026-07-02T12:00:00+08:00"));
-  const activeTasks = tasks.filter((task) => task.status !== "done").slice(0, 2);
+  const stats = calculateTaskStats(
+    tasks,
+    new Date("2026-07-02T12:00:00+08:00"),
+  );
+  const activeTasks = tasks
+    .filter((task) => task.status !== "done")
+    .slice(0, 2);
 
   return (
     <div className="space-y-8">
@@ -94,10 +100,19 @@ export function DashboardPage({ tasks }: DashboardPageProps) {
               <Tabs items={["模型消耗", "客户消耗", "销售人员消耗"]} />
               <div className="mt-8 space-y-4">
                 {ranking.map((item) => (
-                  <div key={`${item.name}-${item.value}`} className="grid grid-cols-[160px_1fr] items-center gap-4 text-sm">
+                  <div
+                    key={`${item.name}-${item.value}`}
+                    className="grid grid-cols-[160px_1fr] items-center gap-4 text-sm"
+                  >
                     <span className="truncate text-slate-500">{item.name}</span>
                     <div className="h-3 border-l border-slate-200">
-                      <div className={item.color} style={{ width: `${(item.value / 11000) * 100}%`, height: "100%" }} />
+                      <div
+                        className={item.color}
+                        style={{
+                          width: `${(item.value / 11000) * 100}%`,
+                          height: "100%",
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -135,7 +150,11 @@ export function DashboardPage({ tasks }: DashboardPageProps) {
             <div className="mt-4 rounded-md border border-slate-200 bg-white p-8 shadow-sm shadow-slate-100">
               <div className="relative space-y-8 border-l border-slate-200 pl-6">
                 {[
-                  ["Claude官方分组已上架", "claude-sonnet-5", "1天前 2026-07-01 10:33"],
+                  [
+                    "Claude官方分组已上架",
+                    "claude-sonnet-5",
+                    "1天前 2026-07-01 10:33",
+                  ],
                   ["已上架glm-5.2", "", "2周前 2026-06-17 10:48"],
                   ["已上线kimi-k2.7-code", "", "2周前 2026-06-14 23:09"],
                 ].map(([title, model, time]) => (
@@ -208,15 +227,23 @@ function MetricCard({
   }[tone];
 
   return (
-    <div className={`min-h-[150px] rounded-md border border-slate-200 bg-gradient-to-br ${toneClasses.card} p-7 shadow-sm shadow-slate-100`}>
+    <div
+      className={`min-h-[150px] rounded-md border border-slate-200 bg-gradient-to-br ${toneClasses.card} p-7 shadow-sm shadow-slate-100`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-sm text-slate-400">{label}</div>
-          <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+            {value}
+          </div>
           <div className="mt-6 text-sm text-slate-400">{helperLabel}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{helperValue}</div>
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+            {helperValue}
+          </div>
         </div>
-        <div className={`flex size-16 shrink-0 items-center justify-center rounded-full border ${toneClasses.icon}`}>
+        <div
+          className={`flex size-16 shrink-0 items-center justify-center rounded-full border ${toneClasses.icon}`}
+        >
           <Icon className="size-8" />
         </div>
       </div>
@@ -224,7 +251,13 @@ function MetricCard({
   );
 }
 
-function Tabs({ items, compact = false }: { items: string[]; compact?: boolean }) {
+function Tabs({
+  items,
+  compact = false,
+}: {
+  items: string[];
+  compact?: boolean;
+}) {
   return (
     <div className={compact ? "flex rounded-md bg-slate-50 p-1" : "flex gap-8"}>
       {items.map((item, index) => (
@@ -246,28 +279,91 @@ function Tabs({ items, compact = false }: { items: string[]; compact?: boolean }
 function RevenueChart() {
   return (
     <div className="mt-8 h-[340px] overflow-hidden">
-      <svg className="h-full w-full" viewBox="0 0 900 340" role="img" aria-label="消耗金额趋势图">
+      <svg
+        className="h-full w-full"
+        viewBox="0 0 900 340"
+        role="img"
+        aria-label="消耗金额趋势图"
+      >
         {[70, 120, 170, 220, 270].map((y) => (
-          <line key={`h-${y}`} x1="40" x2="870" y1={y} y2={y} stroke="#eef1f5" />
+          <line
+            key={`h-${y}`}
+            x1="40"
+            x2="870"
+            y1={y}
+            y2={y}
+            stroke="#eef1f5"
+          />
         ))}
         {[95, 170, 245, 320, 395, 470, 545, 620, 695, 770, 845].map((x) => (
-          <line key={`v-${x}`} x1={x} x2={x} y1="45" y2="292" stroke="#eef1f5" />
+          <line
+            key={`v-${x}`}
+            x1={x}
+            x2={x}
+            y1="45"
+            y2="292"
+            stroke="#eef1f5"
+          />
         ))}
-        <polyline points={chartPoints} fill="none" stroke="#3a6fff" strokeWidth="2.5" />
-        <polyline points={chartFuture} fill="none" stroke="#3a6fff" strokeWidth="2.5" strokeDasharray="6 6" />
-        <line x1="485" x2="485" y1="32" y2="278" stroke="#111827" strokeDasharray="3 3" />
-        {["￥30k", "￥25k", "￥20k", "￥15k", "￥10k", "￥0"].map((label, index) => (
-          <text key={label} x="0" y={index === 5 ? 300 : 76 + index * 50} fill="#9ca3af" fontSize="13">
-            {label}
-          </text>
-        ))}
-        {["07-01", "07-02", "07-03", "07-04", "07-05", "07-06", "07-07", "07-08", "07-09", "07-10", "07-12", "07-13"].map(
+        <polyline
+          points={chartPoints}
+          fill="none"
+          stroke="#3a6fff"
+          strokeWidth="2.5"
+        />
+        <polyline
+          points={chartFuture}
+          fill="none"
+          stroke="#3a6fff"
+          strokeWidth="2.5"
+          strokeDasharray="6 6"
+        />
+        <line
+          x1="485"
+          x2="485"
+          y1="32"
+          y2="278"
+          stroke="#111827"
+          strokeDasharray="3 3"
+        />
+        {["￥30k", "￥25k", "￥20k", "￥15k", "￥10k", "￥0"].map(
           (label, index) => (
-            <text key={label} x={88 + index * 73} y="320" fill="#9ca3af" fontSize="13" textAnchor="middle">
+            <text
+              key={label}
+              x="0"
+              y={index === 5 ? 300 : 76 + index * 50}
+              fill="#9ca3af"
+              fontSize="13"
+            >
               {label}
             </text>
           ),
         )}
+        {[
+          "07-01",
+          "07-02",
+          "07-03",
+          "07-04",
+          "07-05",
+          "07-06",
+          "07-07",
+          "07-08",
+          "07-09",
+          "07-10",
+          "07-12",
+          "07-13",
+        ].map((label, index) => (
+          <text
+            key={label}
+            x={88 + index * 73}
+            y="320"
+            fill="#9ca3af"
+            fontSize="13"
+            textAnchor="middle"
+          >
+            {label}
+          </text>
+        ))}
         <foreignObject x="500" y="150" width="210" height="110">
           <div className="rounded-md bg-white/95 p-4 text-xs shadow-xl shadow-slate-200">
             <div className="font-bold text-slate-950">07-07 06:00</div>
@@ -276,7 +372,10 @@ function RevenueChart() {
               ["New MRR", "#14c8e5"],
               ["Churned MRR", "#f25be9"],
             ].map(([label, color]) => (
-              <div key={label} className="mt-2 grid grid-cols-[14px_1fr_auto] items-center gap-2 text-slate-700">
+              <div
+                key={label}
+                className="mt-2 grid grid-cols-[14px_1fr_auto] items-center gap-2 text-slate-700"
+              >
                 <span style={{ backgroundColor: color }} className="h-1.5" />
                 <span>{label}</span>
                 <span className="font-semibold text-slate-400">¥17,832.98</span>
@@ -306,7 +405,9 @@ function TodoCard({
         <Icon className="size-5 text-amber-400" />
         {title}
       </div>
-      <div className={`mt-4 border-l-2 ${accent} bg-gradient-to-r from-slate-50 to-white px-3 py-2 text-base font-medium leading-6 text-slate-950`}>
+      <div
+        className={`mt-4 border-l-2 ${accent} bg-gradient-to-r from-slate-50 to-white px-3 py-2 text-base font-medium leading-6 text-slate-950`}
+      >
         {body}
       </div>
       <button className="mt-5 flex w-full items-center justify-between text-sm font-medium text-slate-400">

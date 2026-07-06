@@ -78,7 +78,11 @@ const modelLogoModules = import.meta.glob("../../images/modelsLogo/*", {
 
 const modelLogoUrls = Object.fromEntries(
   Object.entries(modelLogoModules).map(([path, url]) => [
-    path.split("/").pop()?.replace(/\.[^.]+$/, "").toUpperCase() ?? "",
+    path
+      .split("/")
+      .pop()
+      ?.replace(/\.[^.]+$/, "")
+      .toUpperCase() ?? "",
     url,
   ]),
 );
@@ -699,18 +703,36 @@ function Dashboard({
       {
         title: "模型消耗排行榜",
         metric: "model" as const,
-        items: buildEnterpriseRanking(data, customer, dashboardRecords, "model", 3),
+        items: buildEnterpriseRanking(
+          data,
+          customer,
+          dashboardRecords,
+          "model",
+          3,
+        ),
       },
       {
         title: "员工消耗排行",
         metric: "employee" as const,
-        items: buildEnterpriseRanking(data, customer, dashboardRecords, "employee", 3),
+        items: buildEnterpriseRanking(
+          data,
+          customer,
+          dashboardRecords,
+          "employee",
+          3,
+        ),
       },
     ],
     [data, customer, dashboardRecords],
   );
   const trendSeries = React.useMemo(
-    () => buildTrendSeries(dashboardRecords, trendMetric, trendRange, getDashboardNow()),
+    () =>
+      buildTrendSeries(
+        dashboardRecords,
+        trendMetric,
+        trendRange,
+        getDashboardNow(),
+      ),
     [dashboardRecords, trendMetric, trendRange],
   );
   const totalAmount = sum(dashboardRecords, (record) => record.amount);
@@ -842,16 +864,27 @@ function Models({ data, customer }: { data: DealerData; customer: Customer }) {
     [data.models],
   );
   const filteredModels = React.useMemo(
-    () => data.models.filter((model) => {
-      const normalizedKeyword = keyword.trim().toLowerCase();
-      const keywordMatched = !normalizedKeyword
-        || [model.provider, model.name, model.type, model.billingType, model.abilities]
-          .some((value) => value.toLowerCase().includes(normalizedKeyword));
-      return keywordMatched
-        && (providerFilter.length === 0 || providerFilter.includes(model.provider))
-        && (typeFilter.length === 0 || typeFilter.includes(model.type))
-        && (billingFilter.length === 0 || billingFilter.includes(model.billingType));
-    }),
+    () =>
+      data.models.filter((model) => {
+        const normalizedKeyword = keyword.trim().toLowerCase();
+        const keywordMatched =
+          !normalizedKeyword ||
+          [
+            model.provider,
+            model.name,
+            model.type,
+            model.billingType,
+            model.abilities,
+          ].some((value) => value.toLowerCase().includes(normalizedKeyword));
+        return (
+          keywordMatched &&
+          (providerFilter.length === 0 ||
+            providerFilter.includes(model.provider)) &&
+          (typeFilter.length === 0 || typeFilter.includes(model.type)) &&
+          (billingFilter.length === 0 ||
+            billingFilter.includes(model.billingType))
+        );
+      }),
     [billingFilter, data.models, keyword, providerFilter, typeFilter],
   );
 
@@ -876,10 +909,29 @@ function Models({ data, customer }: { data: DealerData; customer: Customer }) {
                 onChange={(event) => setKeyword(event.target.value)}
               />
             </div>
-            <EnterpriseFilterMultiSelect label="供应商" options={providerOptions} value={providerFilter} onChange={setProviderFilter} />
-            <EnterpriseFilterMultiSelect label="模型类型" options={["对话补全", "图像", "文本转语音", "语音转文本", "视频"]} value={typeFilter} onChange={setTypeFilter} />
-            <EnterpriseFilterMultiSelect label="计费类型" options={["按量计费", "按次计费"]} value={billingFilter} onChange={setBillingFilter} />
-            <Button className="whitespace-nowrap" variant="secondary" onClick={resetFilters}>
+            <EnterpriseFilterMultiSelect
+              label="供应商"
+              options={providerOptions}
+              value={providerFilter}
+              onChange={setProviderFilter}
+            />
+            <EnterpriseFilterMultiSelect
+              label="模型类型"
+              options={["对话补全", "图像", "文本转语音", "语音转文本", "视频"]}
+              value={typeFilter}
+              onChange={setTypeFilter}
+            />
+            <EnterpriseFilterMultiSelect
+              label="计费类型"
+              options={["按量计费", "按次计费"]}
+              value={billingFilter}
+              onChange={setBillingFilter}
+            />
+            <Button
+              className="whitespace-nowrap"
+              variant="secondary"
+              onClick={resetFilters}
+            >
               <RotateCcw className="size-4" />
               重置
             </Button>
@@ -889,19 +941,34 @@ function Models({ data, customer }: { data: DealerData; customer: Customer }) {
       </section>
 
       {viewMode === "cards" ? (
-        <EnterpriseModelCardGrid models={filteredModels} onDetail={setDetailModel} />
+        <EnterpriseModelCardGrid
+          models={filteredModels}
+          onDetail={setDetailModel}
+        />
       ) : (
-        <EnterpriseModelTable models={filteredModels} onDetail={setDetailModel} />
+        <EnterpriseModelTable
+          models={filteredModels}
+          onDetail={setDetailModel}
+        />
       )}
 
       {detailModel ? (
-        <EnterpriseModelDetailDialog model={detailModel} onClose={() => setDetailModel(null)} />
+        <EnterpriseModelDetailDialog
+          model={detailModel}
+          onClose={() => setDetailModel(null)}
+        />
       ) : null}
     </div>
   );
 }
 
-function EnterpriseViewModeToggle({ value, onChange }: { value: "cards" | "table"; onChange: (value: "cards" | "table") => void }) {
+function EnterpriseViewModeToggle({
+  value,
+  onChange,
+}: {
+  value: "cards" | "table";
+  onChange: (value: "cards" | "table") => void;
+}) {
   const items = [
     { value: "cards" as const, label: "卡片视图", icon: LayoutGrid },
     { value: "table" as const, label: "列表视图", icon: List },
@@ -918,7 +985,9 @@ function EnterpriseViewModeToggle({ value, onChange }: { value: "cards" | "table
             aria-label={item.label}
             className={cn(
               "flex size-8 items-center justify-center rounded transition-colors",
-              selected ? "bg-[#1155ff] text-white shadow-sm" : "text-slate-500 hover:bg-white hover:text-slate-900",
+              selected
+                ? "bg-[#1155ff] text-white shadow-sm"
+                : "text-slate-500 hover:bg-white hover:text-slate-900",
             )}
             onClick={() => onChange(item.value)}
             title={item.label}
@@ -932,7 +1001,17 @@ function EnterpriseViewModeToggle({ value, onChange }: { value: "cards" | "table
   );
 }
 
-function EnterpriseFilterMultiSelect({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (value: string[]) => void }) {
+function EnterpriseFilterMultiSelect({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const display = value.length === 0 ? label : `${label}(${value.length})`;
@@ -947,7 +1026,11 @@ function EnterpriseFilterMultiSelect({ label, options, value, onChange }: { labe
   }, []);
 
   function toggleOption(option: string) {
-    onChange(value.includes(option) ? value.filter((item) => item !== option) : [...value, option]);
+    onChange(
+      value.includes(option)
+        ? value.filter((item) => item !== option)
+        : [...value, option],
+    );
   }
 
   return (
@@ -958,8 +1041,17 @@ function EnterpriseFilterMultiSelect({ label, options, value, onChange }: { labe
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        <span className={value.length === 0 ? "text-slate-400" : "text-slate-700"}>{display}</span>
-        <ChevronDown className={cn("size-4 text-slate-400 transition-transform", open ? "rotate-180" : "")} />
+        <span
+          className={value.length === 0 ? "text-slate-400" : "text-slate-700"}
+        >
+          {display}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-4 text-slate-400 transition-transform",
+            open ? "rotate-180" : "",
+          )}
+        />
       </button>
       {open ? (
         <div className="absolute left-0 top-11 z-40 min-w-44 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/70">
@@ -970,12 +1062,21 @@ function EnterpriseFilterMultiSelect({ label, options, value, onChange }: { labe
                 key={option}
                 className={cn(
                   "flex h-9 w-full cursor-pointer items-center gap-2 rounded px-2.5 text-left text-sm transition-colors",
-                  checked ? "bg-blue-50 text-[#1155ff]" : "text-slate-700 hover:bg-slate-50",
+                  checked
+                    ? "bg-blue-50 text-[#1155ff]"
+                    : "text-slate-700 hover:bg-slate-50",
                 )}
                 onClick={() => toggleOption(option)}
                 type="button"
               >
-                <span className={cn("flex size-4 items-center justify-center rounded border", checked ? "border-[#1155ff] bg-[#1155ff] text-white" : "border-slate-300")}>
+                <span
+                  className={cn(
+                    "flex size-4 items-center justify-center rounded border",
+                    checked
+                      ? "border-[#1155ff] bg-[#1155ff] text-white"
+                      : "border-slate-300",
+                  )}
+                >
                   {checked ? <CheckIcon /> : null}
                 </span>
                 <span className="truncate">{option}</span>
@@ -991,12 +1092,24 @@ function EnterpriseFilterMultiSelect({ label, options, value, onChange }: { labe
 function CheckIcon() {
   return (
     <svg className="size-3" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path d="M10 3 4.8 8.2 2 5.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M10 3 4.8 8.2 2 5.4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-function EnterpriseModelCardGrid({ models, onDetail }: { models: AiModel[]; onDetail: (model: AiModel) => void }) {
+function EnterpriseModelCardGrid({
+  models,
+  onDetail,
+}: {
+  models: AiModel[];
+  onDetail: (model: AiModel) => void;
+}) {
   if (models.length === 0) {
     return (
       <section className="rounded-md border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm shadow-slate-100">
@@ -1008,32 +1121,69 @@ function EnterpriseModelCardGrid({ models, onDetail }: { models: AiModel[]; onDe
   return (
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {models.map((model) => {
-        const abilityTags = model.abilities.split(",").map((item) => item.trim()).filter(Boolean);
+        const abilityTags = model.abilities
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
         return (
-          <article key={model.id} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100 transition hover:border-blue-100 hover:shadow-md hover:shadow-slate-100">
+          <article
+            key={model.id}
+            className="rounded-md border border-slate-200 bg-white p-5 shadow-sm shadow-slate-100 transition hover:border-blue-100 hover:shadow-md hover:shadow-slate-100"
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3">
                 <EnterpriseModelLogo model={model} size="md" />
                 <div className="min-w-0">
-                  <h3 className="truncate text-base font-semibold text-slate-950">{model.name}</h3>
-                  <p className="mt-1 truncate text-sm text-slate-500">{model.provider} · {model.type}</p>
+                  <h3 className="truncate text-base font-semibold text-slate-950">
+                    {model.name}
+                  </h3>
+                  <p className="mt-1 truncate text-sm text-slate-500">
+                    {model.provider} · {model.type}
+                  </p>
                 </div>
               </div>
-              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">{model.status}</span>
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+                {model.status}
+              </span>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <EnterpriseModelPrice label="输入价格" value={`${formatCurrency(model.inputPrice)}/1M`} />
-              <EnterpriseModelPrice label="输出价格" value={`${formatCurrency(model.outputPrice)}/1M`} />
-              <EnterpriseModelPrice label="缓存价格" value={`${formatCurrency(model.cachePrice)}/1M`} />
-              <EnterpriseModelPrice label="计费类型" value={model.billingType} />
+              <EnterpriseModelPrice
+                label="输入价格"
+                value={`${formatCurrency(model.inputPrice)}/1M`}
+              />
+              <EnterpriseModelPrice
+                label="输出价格"
+                value={`${formatCurrency(model.outputPrice)}/1M`}
+              />
+              <EnterpriseModelPrice
+                label="缓存价格"
+                value={`${formatCurrency(model.cachePrice)}/1M`}
+              />
+              <EnterpriseModelPrice
+                label="计费类型"
+                value={model.billingType}
+              />
             </div>
             <div className="mt-5 flex min-h-8 flex-wrap gap-2">
-              {abilityTags.length > 0 ? abilityTags.map((tag) => (
-                <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">{tag}</span>
-              )) : <span className="text-sm text-slate-400">暂无能力标签</span>}
+              {abilityTags.length > 0 ? (
+                abilityTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500"
+                  >
+                    {tag}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-slate-400">暂无能力标签</span>
+              )}
             </div>
             <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
-              <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(model)}>
+              <Button
+                className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                variant="ghost"
+                onClick={() => onDetail(model)}
+              >
                 <Eye className="size-4" />
                 详情
               </Button>
@@ -1045,8 +1195,22 @@ function EnterpriseModelCardGrid({ models, onDetail }: { models: AiModel[]; onDe
   );
 }
 
-function EnterpriseModelTable({ models, onDetail }: { models: AiModel[]; onDetail: (model: AiModel) => void }) {
-  const columns = ["厂商", "模型名称", "输入价格", "输出价格", "缓存价格", "计费类型", "模型能力"];
+function EnterpriseModelTable({
+  models,
+  onDetail,
+}: {
+  models: AiModel[];
+  onDetail: (model: AiModel) => void;
+}) {
+  const columns = [
+    "厂商",
+    "模型名称",
+    "输入价格",
+    "输出价格",
+    "缓存价格",
+    "计费类型",
+    "模型能力",
+  ];
 
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
@@ -1055,7 +1219,10 @@ function EnterpriseModelTable({ models, onDetail }: { models: AiModel[]; onDetai
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
               {columns.map((column) => (
-                <th key={column} className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium">
+                <th
+                  key={column}
+                  className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium"
+                >
                   {column}
                 </th>
               ))}
@@ -1067,27 +1234,44 @@ function EnterpriseModelTable({ models, onDetail }: { models: AiModel[]; onDetai
           <tbody>
             {models.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="h-24 px-4 text-center text-slate-500">
+                <td
+                  colSpan={columns.length + 1}
+                  className="h-24 px-4 text-center text-slate-500"
+                >
                   暂无数据
                 </td>
               </tr>
             ) : null}
             {models.map((model) => (
               <tr key={model.id} className="hover:bg-slate-50/70">
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{model.provider}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {model.provider}
+                </td>
                 <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
                   <EnterpriseModelName model={model} />
                 </td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatCurrency(model.inputPrice)}/1M Tokens</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatCurrency(model.outputPrice)}/1M Tokens</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatCurrency(model.cachePrice)}/1M Tokens</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{model.billingType}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {formatCurrency(model.inputPrice)}/1M Tokens
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {formatCurrency(model.outputPrice)}/1M Tokens
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {formatCurrency(model.cachePrice)}/1M Tokens
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {model.billingType}
+                </td>
                 <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
                   <ModelAbilityTags value={model.abilities} />
                 </td>
                 <td className="sticky right-0 z-20 whitespace-nowrap border-b border-l border-slate-100 bg-white px-4 py-3 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
                   <div className="flex justify-end">
-                    <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(model)}>
+                    <Button
+                      className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                      variant="ghost"
+                      onClick={() => onDetail(model)}
+                    >
                       <Eye className="size-4" />
                       详情
                     </Button>
@@ -1102,24 +1286,40 @@ function EnterpriseModelTable({ models, onDetail }: { models: AiModel[]; onDetai
   );
 }
 
-function EnterpriseModelDetailDialog({ model, onClose }: { model: AiModel; onClose: () => void }) {
+function EnterpriseModelDetailDialog({
+  model,
+  onClose,
+}: {
+  model: AiModel;
+  onClose: () => void;
+}) {
   return (
-    <Modal
-      open
-      title="模型详情"
-      description={model.name}
-      onClose={onClose}
-    >
+    <Modal open title="模型详情" description={model.name} onClose={onClose}>
       <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-7 py-6">
         <div className="grid gap-4 md:grid-cols-2">
           <EnterpriseDetailField label="厂商" value={model.provider} />
-          <EnterpriseDetailField label="模型名称" value={<EnterpriseModelName model={model} />} />
+          <EnterpriseDetailField
+            label="模型名称"
+            value={<EnterpriseModelName model={model} />}
+          />
           <EnterpriseDetailField label="模型类型" value={model.type} />
-          <EnterpriseDetailField label="输入价格" value={`${formatCurrency(model.inputPrice)}/1M Tokens`} />
-          <EnterpriseDetailField label="输出价格" value={`${formatCurrency(model.outputPrice)}/1M Tokens`} />
-          <EnterpriseDetailField label="缓存价格" value={`${formatCurrency(model.cachePrice)}/1M Tokens`} />
+          <EnterpriseDetailField
+            label="输入价格"
+            value={`${formatCurrency(model.inputPrice)}/1M Tokens`}
+          />
+          <EnterpriseDetailField
+            label="输出价格"
+            value={`${formatCurrency(model.outputPrice)}/1M Tokens`}
+          />
+          <EnterpriseDetailField
+            label="缓存价格"
+            value={`${formatCurrency(model.cachePrice)}/1M Tokens`}
+          />
           <EnterpriseDetailField label="计费类型" value={model.billingType} />
-          <EnterpriseDetailField label="模型能力" value={<ModelAbilityTags value={model.abilities} />} />
+          <EnterpriseDetailField
+            label="模型能力"
+            value={<ModelAbilityTags value={model.abilities} />}
+          />
         </div>
       </div>
       <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-7 py-5">
@@ -1131,7 +1331,13 @@ function EnterpriseModelDetailDialog({ model, onClose }: { model: AiModel; onClo
   );
 }
 
-function EnterpriseDetailField({ label, value }: { label: string; value: React.ReactNode }) {
+function EnterpriseDetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div className="rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
       <div className="text-sm font-semibold text-slate-400">{label}</div>
@@ -1141,21 +1347,41 @@ function EnterpriseDetailField({ label, value }: { label: string; value: React.R
 }
 
 function ModelAbilityTags({ value }: { value: string }) {
-  const tags = value.split(",").map((item) => item.trim()).filter(Boolean);
+  const tags = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
   return (
     <div className="flex max-w-[360px] flex-wrap gap-2">
-      {tags.length > 0 ? tags.map((tag) => (
-        <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">{tag}</span>
-      )) : <span className="text-slate-400">-</span>}
+      {tags.length > 0 ? (
+        tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500"
+          >
+            {tag}
+          </span>
+        ))
+      ) : (
+        <span className="text-slate-400">-</span>
+      )}
     </div>
   );
 }
 
-function EnterpriseModelPrice({ label, value }: { label: string; value: string }) {
+function EnterpriseModelPrice({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
       <div className="text-xs text-slate-400">{label}</div>
-      <div className="mt-1 truncate text-sm font-semibold text-slate-950">{value}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-slate-950">
+        {value}
+      </div>
     </div>
   );
 }
@@ -1169,16 +1395,28 @@ function EnterpriseModelName({ model }: { model: AiModel }) {
   );
 }
 
-function EnterpriseModelLogo({ model, size }: { model: AiModel; size: "sm" | "md" }) {
+function EnterpriseModelLogo({
+  model,
+  size,
+}: {
+  model: AiModel;
+  size: "sm" | "md";
+}) {
   const logoText = model.logoText.toUpperCase();
   const logoUrl = modelLogoUrls[logoText];
   const sizeClass = size === "sm" ? "size-8 rounded" : "size-11 rounded-md";
   const imagePaddingClass = size === "sm" ? "p-1.5" : "p-2";
 
   return (
-    <div className={`flex ${sizeClass} shrink-0 items-center justify-center border border-blue-100 bg-blue-50 text-sm font-bold text-[#1155ff]`}>
+    <div
+      className={`flex ${sizeClass} shrink-0 items-center justify-center border border-blue-100 bg-blue-50 text-sm font-bold text-[#1155ff]`}
+    >
       {logoUrl ? (
-        <img alt={`${model.provider} Logo`} className={`h-full w-full object-contain ${imagePaddingClass}`} src={logoUrl} />
+        <img
+          alt={`${model.provider} Logo`}
+          className={`h-full w-full object-contain ${imagePaddingClass}`}
+          src={logoUrl}
+        />
       ) : (
         logoText || <Bot className="size-5" />
       )}
@@ -1186,17 +1424,32 @@ function EnterpriseModelLogo({ model, size }: { model: AiModel; size: "sm" | "md
   );
 }
 
-function Products({ data, customer }: { data: DealerData; customer: Customer }) {
+function Products({
+  data,
+  customer,
+}: {
+  data: DealerData;
+  customer: Customer;
+}) {
   const [keyword, setKeyword] = React.useState("");
   const [viewMode, setViewMode] = React.useState<"cards" | "table">("cards");
-  const [detailProduct, setDetailProduct] = React.useState<ModelProduct | null>(null);
-  const [purchaseProduct, setPurchaseProduct] = React.useState<ModelProduct | null>(null);
+  const [detailProduct, setDetailProduct] = React.useState<ModelProduct | null>(
+    null,
+  );
+  const [purchaseProduct, setPurchaseProduct] =
+    React.useState<ModelProduct | null>(null);
   const purchasedContracts = React.useMemo(
-    () => data.contracts.filter((contract) => contract.customerName === customer.company),
+    () =>
+      data.contracts.filter(
+        (contract) => contract.customerName === customer.company,
+      ),
     [customer.company, data.contracts],
   );
   const contractByProduct = React.useMemo(
-    () => new Map(purchasedContracts.map((contract) => [contract.productName, contract])),
+    () =>
+      new Map(
+        purchasedContracts.map((contract) => [contract.productName, contract]),
+      ),
     [purchasedContracts],
   );
   const filteredProducts = React.useMemo(() => {
@@ -1245,7 +1498,11 @@ function Products({ data, customer }: { data: DealerData; customer: Customer }) 
                 onChange={(event) => setKeyword(event.target.value)}
               />
             </div>
-            <Button className="whitespace-nowrap" variant="secondary" onClick={resetFilters}>
+            <Button
+              className="whitespace-nowrap"
+              variant="secondary"
+              onClick={resetFilters}
+            >
               <RotateCcw className="size-4" />
               重置
             </Button>
@@ -1321,13 +1578,17 @@ function EnterpriseProductCardGrid({
             key={product.id}
             className={cn(
               "overflow-hidden rounded-md border bg-white shadow-sm shadow-slate-100 transition hover:shadow-md hover:shadow-slate-100",
-              contract ? "border-emerald-200 ring-1 ring-emerald-100" : "border-slate-200 hover:border-blue-100",
+              contract
+                ? "border-emerald-200 ring-1 ring-emerald-100"
+                : "border-slate-200 hover:border-blue-100",
             )}
           >
             <div className="border-b border-slate-100 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h3 className="truncate text-base font-semibold text-slate-950">{product.name}</h3>
+                  <h3 className="truncate text-base font-semibold text-slate-950">
+                    {product.name}
+                  </h3>
                   <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
                     <CalendarDays className="size-4 text-slate-400" />
                     {getProductBillingLabel(product)}
@@ -1337,10 +1598,15 @@ function EnterpriseProductCardGrid({
               </div>
             </div>
             <div className="min-h-52 p-5">
-              <div className="text-sm font-semibold text-slate-400">关联模型（预览）</div>
+              <div className="text-sm font-semibold text-slate-400">
+                关联模型（预览）
+              </div>
               <div className="mt-3 flex min-h-20 flex-wrap content-start gap-2">
                 {relatedModels.map((model) => (
-                  <span key={model.name} className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">
+                  <span
+                    key={model.name}
+                    className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700"
+                  >
                     <EnterpriseModelLogo model={model} size="sm" />
                     {model.name}
                   </span>
@@ -1355,18 +1621,30 @@ function EnterpriseProductCardGrid({
             <div className="grid grid-cols-2 gap-4 border-t border-slate-100 p-5">
               {getProductStats(product).map((item) => (
                 <div key={item.label}>
-                  <div className="text-sm font-semibold text-slate-400">{item.label}</div>
-                  <div className="mt-1 text-lg font-bold text-slate-950">{item.value}</div>
+                  <div className="text-sm font-semibold text-slate-400">
+                    {item.label}
+                  </div>
+                  <div className="mt-1 text-lg font-bold text-slate-950">
+                    {item.value}
+                  </div>
                 </div>
               ))}
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
-              <Button className="h-9 px-3" variant="secondary" onClick={() => onDetail(product)}>
+              <Button
+                className="h-9 px-3"
+                variant="secondary"
+                onClick={() => onDetail(product)}
+              >
                 <Eye className="size-4" />
                 详情
               </Button>
               {!contract ? (
-                <Button className="h-9 px-3" variant="primary" onClick={() => onPurchase(product)}>
+                <Button
+                  className="h-9 px-3"
+                  variant="primary"
+                  onClick={() => onPurchase(product)}
+                >
                   <ShoppingCart className="size-4" />
                   购买
                 </Button>
@@ -1390,7 +1668,14 @@ function EnterpriseProductTable({
   onPurchase: (product: ModelProduct) => void;
   products: ModelProduct[];
 }) {
-  const columns = ["产品名称", "套餐模式", "价格", "额度/折扣", "状态", "购买标识"];
+  const columns = [
+    "产品名称",
+    "套餐模式",
+    "价格",
+    "额度/折扣",
+    "状态",
+    "购买标识",
+  ];
 
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100">
@@ -1399,7 +1684,10 @@ function EnterpriseProductTable({
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
               {columns.map((column) => (
-                <th key={column} className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium">
+                <th
+                  key={column}
+                  className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium"
+                >
                   {column}
                 </th>
               ))}
@@ -1411,7 +1699,10 @@ function EnterpriseProductTable({
           <tbody>
             {products.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="h-24 px-4 text-center text-slate-500">
+                <td
+                  colSpan={columns.length + 1}
+                  className="h-24 px-4 text-center text-slate-500"
+                >
                   暂无数据
                 </td>
               </tr>
@@ -1420,22 +1711,43 @@ function EnterpriseProductTable({
               const contract = contractByProduct.get(product.name);
               return (
                 <tr key={product.id} className="hover:bg-slate-50/70">
-                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 font-medium text-slate-800">{product.name}</td>
-                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{product.packageMode}</td>
-                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{getProductStats(product)[0]?.value ?? "-"}</td>
-                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{getProductStats(product)[1]?.value ?? "-"}</td>
-                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{product.status}</td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 font-medium text-slate-800">
+                    {product.name}
+                  </td>
                   <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
-                    <EnterpriseProductBadge contract={contract} product={product} />
+                    {product.packageMode}
+                  </td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                    {getProductStats(product)[0]?.value ?? "-"}
+                  </td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                    {getProductStats(product)[1]?.value ?? "-"}
+                  </td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                    {product.status}
+                  </td>
+                  <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                    <EnterpriseProductBadge
+                      contract={contract}
+                      product={product}
+                    />
                   </td>
                   <td className="sticky right-0 z-20 whitespace-nowrap border-b border-l border-slate-100 bg-white px-4 py-3 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
                     <div className="flex justify-end gap-2">
-                      <Button className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" variant="ghost" onClick={() => onDetail(product)}>
+                      <Button
+                        className="px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        variant="ghost"
+                        onClick={() => onDetail(product)}
+                      >
                         <Eye className="size-4" />
                         详情
                       </Button>
                       {!contract ? (
-                        <Button className="px-2" variant="primary" onClick={() => onPurchase(product)}>
+                        <Button
+                          className="px-2"
+                          variant="primary"
+                          onClick={() => onPurchase(product)}
+                        >
                           <ShoppingCart className="size-4" />
                           购买
                         </Button>
@@ -1470,7 +1782,8 @@ function EnterpriseProductPurchaseDialog({
     >
       <div className="space-y-4 px-7 py-6">
         <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm font-medium text-blue-700">
-          当前为购买入口展示，提交后由经销商为客户「{customer.company}」开通合同。
+          当前为购买入口展示，提交后由经销商为客户「{customer.company}
+          」开通合同。
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <EnterpriseDetailField label="客户名称" value={customer.company} />
@@ -1478,7 +1791,11 @@ function EnterpriseProductPurchaseDialog({
           <EnterpriseDetailField label="套餐模式" value={product.packageMode} />
           <EnterpriseDetailField label="计费模式" value={product.billingMode} />
           {getProductStats(product).map((item) => (
-            <EnterpriseDetailField key={item.label} label={item.label} value={item.value} />
+            <EnterpriseDetailField
+              key={item.label}
+              label={item.label}
+              value={item.value}
+            />
           ))}
         </div>
       </div>
@@ -1517,16 +1834,34 @@ function EnterpriseProductDetailDialog({
           <EnterpriseDetailField label="产品名称" value={product.name} />
           <EnterpriseDetailField label="套餐模式" value={product.packageMode} />
           <EnterpriseDetailField label="计费模式" value={product.billingMode} />
-          <EnterpriseDetailField label="状态" value={<EnterpriseProductBadge contract={contract} product={product} />} />
+          <EnterpriseDetailField
+            label="状态"
+            value={
+              <EnterpriseProductBadge contract={contract} product={product} />
+            }
+          />
           {getProductStats(product).map((item) => (
-            <EnterpriseDetailField key={item.label} label={item.label} value={item.value} />
+            <EnterpriseDetailField
+              key={item.label}
+              label={item.label}
+              value={item.value}
+            />
           ))}
           {contract ? (
             <>
-              <EnterpriseDetailField label="合同号" value={contract.contractNo} />
+              <EnterpriseDetailField
+                label="合同号"
+                value={contract.contractNo}
+              />
               <EnterpriseDetailField label="合同状态" value={contract.status} />
-              <EnterpriseDetailField label="每日限额" value={contract.dailyLimit || "不限制"} />
-              <EnterpriseDetailField label="过期时间" value={contract.expiresAt || "永不过期"} />
+              <EnterpriseDetailField
+                label="每日限额"
+                value={contract.dailyLimit || "不限制"}
+              />
+              <EnterpriseDetailField
+                label="过期时间"
+                value={contract.expiresAt || "永不过期"}
+              />
             </>
           ) : null}
         </div>
@@ -1534,7 +1869,10 @@ function EnterpriseProductDetailDialog({
           <div className="text-sm font-semibold text-slate-400">关联模型</div>
           <div className="mt-3 flex flex-wrap gap-2">
             {resolveProductModels(product, models).map((model) => (
-              <span key={model.name} className="inline-flex items-center gap-2 rounded bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-100">
+              <span
+                key={model.name}
+                className="inline-flex items-center gap-2 rounded bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-100"
+              >
                 <EnterpriseModelLogo model={model} size="sm" />
                 {model.name}
               </span>
@@ -1551,30 +1889,47 @@ function EnterpriseProductDetailDialog({
   );
 }
 
-function EnterpriseProductBadge({ contract, product }: { contract?: Contract; product: ModelProduct }) {
+function EnterpriseProductBadge({
+  contract,
+  product,
+}: {
+  contract?: Contract;
+  product: ModelProduct;
+}) {
   if (contract) {
     return (
-      <span className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-        contract.status === "启用" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600",
-      )}>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+          contract.status === "启用"
+            ? "bg-emerald-50 text-emerald-600"
+            : "bg-amber-50 text-amber-600",
+        )}
+      >
         已购买 · {contract.status}
       </span>
     );
   }
 
   return (
-    <span className={cn(
-      "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-      product.status === "上架" ? "bg-blue-50 text-[#1155ff]" : "bg-slate-100 text-slate-500",
-    )}>
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+        product.status === "上架"
+          ? "bg-blue-50 text-[#1155ff]"
+          : "bg-slate-100 text-slate-500",
+      )}
+    >
       {product.status}
     </span>
   );
 }
 
 function getProductBillingLabel(product: ModelProduct) {
-  if (product.packageMode === "按量包月" || product.packageMode === "按金额包月") {
+  if (
+    product.packageMode === "按量包月" ||
+    product.packageMode === "按金额包月"
+  ) {
     return `${product.billingMode === "按量" ? "按量计费" : "套餐计费"}（包月）`;
   }
 
@@ -1584,28 +1939,46 @@ function getProductBillingLabel(product: ModelProduct) {
 function getProductStats(product: ModelProduct) {
   if (product.packageMode === "按量包月") {
     return [
-      { label: "价格", value: `${formatCurrency(product.monthlyFee ?? 0)} / 月` },
-      { label: "月额度（M Tokens）", value: formatProductQuota(product.monthlyTokenM) },
+      {
+        label: "价格",
+        value: `${formatCurrency(product.monthlyFee ?? 0)} / 月`,
+      },
+      {
+        label: "月额度（M Tokens）",
+        value: formatProductQuota(product.monthlyTokenM),
+      },
     ];
   }
 
   if (product.packageMode === "按金额包月") {
     return [
-      { label: "每月总费用", value: `${formatCurrency(product.monthlyFee ?? 0)} / 月` },
-      { label: "总额度（M Tokens）", value: formatProductQuota(product.tokenLimitM) },
+      {
+        label: "每月总费用",
+        value: `${formatCurrency(product.monthlyFee ?? 0)} / 月`,
+      },
+      {
+        label: "总额度（M Tokens）",
+        value: formatProductQuota(product.tokenLimitM),
+      },
     ];
   }
 
   if (product.packageMode === "不限时按量") {
     return [
       { label: "折扣", value: formatProductDiscount(product.discount ?? 0) },
-      { label: "总额度（M Tokens）", value: formatProductQuota(product.tokenLimitM) },
+      {
+        label: "总额度（M Tokens）",
+        value: formatProductQuota(product.tokenLimitM),
+      },
     ];
   }
 
   return [
     { label: "价格", value: `${formatCurrency(product.inputPrice)}/1M` },
-    { label: "总额度（M Tokens）", value: formatProductQuota(product.tokenLimitM) },
+    {
+      label: "总额度（M Tokens）",
+      value: formatProductQuota(product.tokenLimitM),
+    },
   ];
 }
 
@@ -1620,7 +1993,10 @@ function formatProductDiscount(value: number) {
 }
 
 function resolveProductModels(product: ModelProduct, models: AiModel[]) {
-  const names = product.relatedModels.split(",").map((item) => item.trim()).filter(Boolean);
+  const names = product.relatedModels
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
   return names.flatMap((name) => {
     const model = models.find((item) => item.name === name);
     return model ? [model] : [];
@@ -1886,7 +2262,10 @@ function EnterpriseApiKeyTable({
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
               {columns.map((column) => (
-                <th key={column} className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium">
+                <th
+                  key={column}
+                  className="sticky top-0 z-10 h-12 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 font-medium"
+                >
                   {column}
                 </th>
               ))}
@@ -1898,22 +2277,44 @@ function EnterpriseApiKeyTable({
           <tbody>
             {keys.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="h-24 px-4 text-center text-slate-500">
+                <td
+                  colSpan={columns.length + 1}
+                  className="h-24 px-4 text-center text-slate-500"
+                >
                   暂无数据
                 </td>
               </tr>
             ) : null}
             {keys.map((key) => (
               <tr key={key.id} className="hover:bg-slate-50/70">
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.keyName}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.modelName}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatNumber(key.quotaRemain)} / {formatNumber(key.quotaTotal)}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{formatNumber(key.dailyLimit)}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{maskApiKey(key.apiKey)}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.ipWhitelist}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.status}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.lastUsedAt}</td>
-                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">{key.expiresAt}</td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {key.keyName}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {key.modelName}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {formatNumber(key.quotaRemain)} /{" "}
+                  {formatNumber(key.quotaTotal)}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {formatNumber(key.dailyLimit)}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {maskApiKey(key.apiKey)}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {key.ipWhitelist}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {key.status}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {key.lastUsedAt}
+                </td>
+                <td className="whitespace-nowrap border-b border-slate-100 bg-white px-4 py-3 text-slate-700">
+                  {key.expiresAt}
+                </td>
                 <td className="sticky right-0 z-20 whitespace-nowrap border-b border-l border-slate-100 bg-white px-4 py-3 shadow-[-18px_0_26px_-24px_rgba(30,41,59,0.55)]">
                   <div className="flex justify-end">
                     <ActionButtons
@@ -2138,13 +2539,24 @@ function Bills({ data, customer }: { data: DealerData; customer: Customer }) {
 
 type PaymentMethod = "wechat" | "alipay" | "bank";
 
-function PaymentCenter({ data, customer }: { data: DealerData; customer: Customer }) {
+function PaymentCenter({
+  data,
+  customer,
+}: {
+  data: DealerData;
+  customer: Customer;
+}) {
   const [method, setMethod] = React.useState<PaymentMethod>("wechat");
   const pendingBills = React.useMemo(
-    () => buildEnterpriseBills(data, customer).filter((bill) => bill.status === "待结算"),
+    () =>
+      buildEnterpriseBills(data, customer).filter(
+        (bill) => bill.status === "待结算",
+      ),
     [data, customer],
   );
-  const [selectedIds, setSelectedIds] = React.useState<string[]>(() => pendingBills.map((bill) => bill.id));
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(() =>
+    pendingBills.map((bill) => bill.id),
+  );
 
   React.useEffect(() => {
     setSelectedIds((current) => {
@@ -2154,16 +2566,23 @@ function PaymentCenter({ data, customer }: { data: DealerData; customer: Custome
     });
   }, [pendingBills]);
 
-  const selectedBills = pendingBills.filter((bill) => selectedIds.includes(bill.id));
+  const selectedBills = pendingBills.filter((bill) =>
+    selectedIds.includes(bill.id),
+  );
   const totalAmount = sum(selectedBills, (bill) => bill.amount);
-  const allSelected = pendingBills.length > 0 && selectedIds.length === pendingBills.length;
+  const allSelected =
+    pendingBills.length > 0 && selectedIds.length === pendingBills.length;
 
   function toggleAll(checked: boolean) {
     setSelectedIds(checked ? pendingBills.map((bill) => bill.id) : []);
   }
 
   function toggleBill(id: string, checked: boolean) {
-    setSelectedIds((current) => checked ? uniqueStrings([...current, id]) : current.filter((item) => item !== id));
+    setSelectedIds((current) =>
+      checked
+        ? uniqueStrings([...current, id])
+        : current.filter((item) => item !== id),
+    );
   }
 
   return (
@@ -2202,12 +2621,18 @@ function PaymentCenter({ data, customer }: { data: DealerData; customer: Custome
                 onClick={() => setMethod("bank")}
               />
             </div>
-            {method === "bank" ? <BankTransferInfo /> : <QrPaymentInfo method={method} amount={totalAmount} />}
+            {method === "bank" ? (
+              <BankTransferInfo />
+            ) : (
+              <QrPaymentInfo method={method} amount={totalAmount} />
+            )}
           </div>
 
           <div className="border-t border-slate-100 pt-6">
             <div className="mb-3 flex items-center justify-between gap-4">
-              <h3 className="text-sm font-semibold text-slate-700">待结算账单</h3>
+              <h3 className="text-sm font-semibold text-slate-700">
+                待结算账单
+              </h3>
               <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-500">
                 <input
                   checked={allSelected}
@@ -2224,17 +2649,28 @@ function PaymentCenter({ data, customer }: { data: DealerData; customer: Custome
                 <thead className="bg-slate-50 text-left text-slate-500">
                   <tr>
                     <th className="h-11 w-12 border-b border-slate-200 px-4 font-medium" />
-                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">客户名称</th>
-                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">账期</th>
-                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">本期消费</th>
-                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">账单状态</th>
-                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 text-right font-medium">金额</th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">
+                      客户名称
+                    </th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">
+                      账期
+                    </th>
+
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 font-medium">
+                      账单状态
+                    </th>
+                    <th className="h-11 whitespace-nowrap border-b border-slate-200 px-4 text-right font-medium">
+                      金额
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {pendingBills.length === 0 ? (
                     <tr>
-                      <td className="h-24 text-center text-slate-500" colSpan={6}>
+                      <td
+                        className="h-24 text-center text-slate-500"
+                        colSpan={6}
+                      >
                         暂无待结算账单
                       </td>
                     </tr>
@@ -2246,16 +2682,26 @@ function PaymentCenter({ data, customer }: { data: DealerData; customer: Custome
                           checked={selectedIds.includes(bill.id)}
                           className="size-4 accent-[#1155ff]"
                           type="checkbox"
-                          onChange={(event) => toggleBill(bill.id, event.target.checked)}
+                          onChange={(event) =>
+                            toggleBill(bill.id, event.target.checked)
+                          }
                         />
                       </td>
-                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 font-medium text-slate-800">{bill.customerName}</td>
-                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">{bill.period}</td>
-                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">{formatCurrency(bill.amount)}</td>
-                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3">
-                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600">{bill.status}</span>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 font-medium text-slate-800">
+                        {bill.customerName}
                       </td>
-                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-right font-semibold text-slate-950">{formatCurrency(bill.amount)}</td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-600">
+                        {bill.period}
+                      </td>
+
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3">
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600">
+                          {bill.status}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap border-b border-slate-100 px-4 py-3 text-right font-semibold text-slate-950">
+                        {formatCurrency(bill.amount)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -2263,9 +2709,16 @@ function PaymentCenter({ data, customer }: { data: DealerData; customer: Custome
             </div>
             <div className="mt-4 flex items-center justify-between gap-4">
               <div className="text-base font-semibold text-slate-700">
-                合计：<span className="text-slate-950">{formatCurrency(totalAmount)}</span>
+                合计：
+                <span className="text-slate-950">
+                  {formatCurrency(totalAmount)}
+                </span>
               </div>
-              <Button className="h-11 px-8" disabled={totalAmount <= 0} variant="primary">
+              <Button
+                className="h-11 px-8"
+                disabled={totalAmount <= 0}
+                variant="primary"
+              >
                 支付 {formatCurrency(totalAmount)}
               </Button>
             </div>
@@ -2299,26 +2752,46 @@ function PaymentMethodCard({
     <button
       className={cn(
         "flex min-h-24 items-center gap-4 rounded-md border p-4 text-left transition-colors",
-        active ? "border-[#1155ff] bg-blue-50/40 shadow-sm shadow-blue-100" : "border-slate-200 bg-white hover:border-slate-300",
+        active
+          ? "border-[#1155ff] bg-blue-50/40 shadow-sm shadow-blue-100"
+          : "border-slate-200 bg-white hover:border-slate-300",
       )}
       onClick={onClick}
       type="button"
     >
-      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-full", toneClass)}>
-        {label === "对公转账" ? <Landmark className="size-5" /> : <Wallet className="size-5" />}
+      <span
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-full",
+          toneClass,
+        )}
+      >
+        {label === "对公转账" ? (
+          <Landmark className="size-5" />
+        ) : (
+          <Wallet className="size-5" />
+        )}
       </span>
       <span>
-        <span className="block text-base font-semibold text-slate-950">{label}</span>
+        <span className="block text-base font-semibold text-slate-950">
+          {label}
+        </span>
         <span className="mt-1 block text-sm text-slate-400">{description}</span>
       </span>
     </button>
   );
 }
 
-function QrPaymentInfo({ method, amount }: { method: Exclude<PaymentMethod, "bank">; amount: number }) {
+function QrPaymentInfo({
+  method,
+  amount,
+}: {
+  method: Exclude<PaymentMethod, "bank">;
+  amount: number;
+}) {
   return (
     <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-      当前选择{method === "wechat" ? "微信" : "支付宝"}支付，确认后将生成 {formatCurrency(amount)} 的扫码支付信息。
+      当前选择{method === "wechat" ? "微信" : "支付宝"}支付，确认后将生成{" "}
+      {formatCurrency(amount)} 的扫码支付信息。
     </div>
   );
 }
@@ -2326,10 +2799,30 @@ function QrPaymentInfo({ method, amount }: { method: Exclude<PaymentMethod, "ban
 function BankTransferInfo() {
   return (
     <div className="mt-4 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-2">
-      <div><span className="text-slate-400">户名：</span><span className="font-semibold text-slate-800">杭州 Omni AI 科技有限公司</span></div>
-      <div><span className="text-slate-400">开户行：</span><span className="font-semibold text-slate-800">招商银行杭州未来科技城支行</span></div>
-      <div><span className="text-slate-400">账号：</span><span className="font-semibold text-slate-800">5719 0088 6620 0198</span></div>
-      <div><span className="text-slate-400">备注：</span><span className="font-semibold text-slate-800">请填写企业名称与账期</span></div>
+      <div>
+        <span className="text-slate-400">户名：</span>
+        <span className="font-semibold text-slate-800">
+          杭州 Omni AI 科技有限公司
+        </span>
+      </div>
+      <div>
+        <span className="text-slate-400">开户行：</span>
+        <span className="font-semibold text-slate-800">
+          招商银行杭州未来科技城支行
+        </span>
+      </div>
+      <div>
+        <span className="text-slate-400">账号：</span>
+        <span className="font-semibold text-slate-800">
+          5719 0088 6620 0198
+        </span>
+      </div>
+      <div>
+        <span className="text-slate-400">备注：</span>
+        <span className="font-semibold text-slate-800">
+          请填写企业名称与账期
+        </span>
+      </div>
     </div>
   );
 }
@@ -4068,7 +4561,9 @@ function EnterpriseRankingCard({
                   "h-full rounded-full transition-all",
                   index < 3 ? colors[index] : "bg-slate-300",
                 )}
-                style={{ width: `${Math.max((item.amount / maxAmount) * 100, 8)}%` }}
+                style={{
+                  width: `${Math.max((item.amount / maxAmount) * 100, 8)}%`,
+                }}
               />
             </div>
             <div className="mt-2 truncate text-sm font-medium text-slate-400">
@@ -4095,7 +4590,9 @@ function EnterpriseRankingTooltip({
     <div className="pointer-events-none absolute left-1/2 top-[-118px] z-20 w-[230px] -translate-x-1/2 rounded-md border border-slate-100 bg-white p-3 text-sm text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.12)]">
       <div className="space-y-1 font-semibold">
         <div>
-          <span className="text-slate-400">{metric === "model" ? "模型名称" : "员工姓名"}：</span>
+          <span className="text-slate-400">
+            {metric === "model" ? "模型名称" : "员工姓名"}：
+          </span>
           <span className="text-slate-950">{item.name}</span>
         </div>
         <div>
@@ -4116,7 +4613,10 @@ function EnterpriseRankingTooltip({
   );
 }
 
-function getEnterpriseRankingMeta(item: RankItem, metric: EnterpriseRankMetric) {
+function getEnterpriseRankingMeta(
+  item: RankItem,
+  metric: EnterpriseRankMetric,
+) {
   const subject = metric === "model" ? "Tokens" : "次调用";
   return metric === "model"
     ? `${formatNumber(item.tokens)} ${subject} · ${formatNumber(item.count)} 次`
@@ -4718,14 +5218,21 @@ function buildEnterpriseDashboardRecords(
   customer: Customer,
   records: ConsumptionRecord[],
 ): ConsumptionRecord[] {
-  const successfulRecords = records.filter((record) => record.status === "成功");
-  const modelPool = data.models.filter((model) => model.status === "可用").slice(0, 3);
+  const successfulRecords = records.filter(
+    (record) => record.status === "成功",
+  );
+  const modelPool = data.models
+    .filter((model) => model.status === "可用")
+    .slice(0, 3);
   if (modelPool.length === 0) {
     return successfulRecords;
   }
 
   const members = data.enterpriseMembers
-    .filter((member) => member.customerName === customer.company && member.status === "启用")
+    .filter(
+      (member) =>
+        member.customerName === customer.company && member.status === "启用",
+    )
     .map((member) => member.loginAccount);
   const accounts = uniqueStrings([customer.loginAccount, ...members]);
   const sourceKeys = getCustomerApiKeys(data, customer);
@@ -4738,23 +5245,51 @@ function buildEnterpriseDashboardRecords(
   for (let dayIndex = 0; dayIndex < 30; dayIndex += 1) {
     const date = new Date(start);
     date.setDate(start.getDate() + dayIndex);
-    const dayFactor = 0.82 + ((dayIndex % 9) * 0.045);
-    const weekdayFactor = [0.88, 1.02, 1.08, 1.12, 1.05, 0.78, 0.72][date.getDay()] ?? 1;
+    const dayFactor = 0.82 + (dayIndex % 9) * 0.045;
+    const weekdayFactor =
+      [0.88, 1.02, 1.08, 1.12, 1.05, 0.78, 0.72][date.getDay()] ?? 1;
 
     modelPool.forEach((model, modelIndex) => {
       const isVideoModel = model.type === "视频";
-      const modelWeight = modelIndex === 0 ? 1.28 : modelIndex === 1 ? 1.08 : 0.72;
-      const inputBase = isVideoModel ? 8_500_000 : modelIndex === 0 ? 118_000_000 : 76_000_000;
-      const outputBase = isVideoModel ? 6_800_000 : modelIndex === 0 ? 42_000_000 : 31_000_000;
-      const inputTokens = Math.round(inputBase * dayFactor * weekdayFactor * modelWeight);
-      const outputTokens = Math.round(outputBase * (dayFactor + 0.08) * weekdayFactor * modelWeight);
-      const amount = Number(((inputTokens / 1_000_000) * model.inputPrice + (outputTokens / 1_000_000) * model.outputPrice + (inputTokens / 1_000_000) * model.cachePrice * 0.08).toFixed(2));
+      const modelWeight =
+        modelIndex === 0 ? 1.28 : modelIndex === 1 ? 1.08 : 0.72;
+      const inputBase = isVideoModel
+        ? 8_500_000
+        : modelIndex === 0
+          ? 118_000_000
+          : 76_000_000;
+      const outputBase = isVideoModel
+        ? 6_800_000
+        : modelIndex === 0
+          ? 42_000_000
+          : 31_000_000;
+      const inputTokens = Math.round(
+        inputBase * dayFactor * weekdayFactor * modelWeight,
+      );
+      const outputTokens = Math.round(
+        outputBase * (dayFactor + 0.08) * weekdayFactor * modelWeight,
+      );
+      const amount = Number(
+        (
+          (inputTokens / 1_000_000) * model.inputPrice +
+          (outputTokens / 1_000_000) * model.outputPrice +
+          (inputTokens / 1_000_000) * model.cachePrice * 0.08
+        ).toFixed(2),
+      );
       const hour = 9 + ((dayIndex + modelIndex * 3) % 10);
       const minute = (12 + dayIndex * 7 + modelIndex * 11) % 60;
       const calledAt = `${formatDateOnly(date)} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
-      const fallbackRecord = successfulRecords[(dayIndex + modelIndex) % Math.max(successfulRecords.length, 1)];
-      const keyName = sourceKeys[modelIndex % Math.max(sourceKeys.length, 1)]?.keyName ?? fallbackRecord?.keyName ?? "生产环境主 Key";
-      const registerPhone = accounts[(dayIndex + modelIndex) % Math.max(accounts.length, 1)] ?? customer.loginAccount;
+      const fallbackRecord =
+        successfulRecords[
+          (dayIndex + modelIndex) % Math.max(successfulRecords.length, 1)
+        ];
+      const keyName =
+        sourceKeys[modelIndex % Math.max(sourceKeys.length, 1)]?.keyName ??
+        fallbackRecord?.keyName ??
+        "生产环境主 Key";
+      const registerPhone =
+        accounts[(dayIndex + modelIndex) % Math.max(accounts.length, 1)] ??
+        customer.loginAccount;
 
       rows.push({
         id: `dash-${customer.id}-${dayIndex}-${model.id}`,
