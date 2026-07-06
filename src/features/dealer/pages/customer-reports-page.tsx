@@ -1,5 +1,16 @@
 import * as React from "react";
-import { BarChart3, Check, ChevronDown, Coins, Download, LineChart, RotateCcw, Users, Wallet, Zap } from "lucide-react";
+import {
+  BarChart3,
+  Check,
+  ChevronDown,
+  Coins,
+  Download,
+  LineChart,
+  RotateCcw,
+  Users,
+  Wallet,
+  Zap,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { ConsumptionRecord, DealerData } from "../types";
@@ -31,12 +42,29 @@ const now = new Date("2026-07-03T14:00:00+08:00");
 
 export function CustomerReportsPage({ data }: { data: DealerData }) {
   const [activeTab, setActiveTab] = React.useState<ReportTab>("stats");
-  const [filters, setFilters] = React.useState<ReportFilters>(() => createDefaultFilters(data));
-  const reportRecords = React.useMemo(() => buildReportConsumptionRecords(data), [data]);
-  const filteredRecords = React.useMemo(() => filterConsumptionRecords(data, reportRecords, filters), [data, reportRecords, filters]);
-  const metrics = React.useMemo(() => buildReportMetrics(filteredRecords), [filteredRecords]);
-  const detailRows = React.useMemo(() => buildDetailRows(data, filteredRecords), [data, filteredRecords]);
-  const modelOptions = React.useMemo(() => data.models.map((model) => model.name), [data.models]);
+  const [filters, setFilters] = React.useState<ReportFilters>(() =>
+    createDefaultFilters(data),
+  );
+  const reportRecords = React.useMemo(
+    () => buildReportConsumptionRecords(data),
+    [data],
+  );
+  const filteredRecords = React.useMemo(
+    () => filterConsumptionRecords(data, reportRecords, filters),
+    [data, reportRecords, filters],
+  );
+  const metrics = React.useMemo(
+    () => buildReportMetrics(filteredRecords),
+    [filteredRecords],
+  );
+  const detailRows = React.useMemo(
+    () => buildDetailRows(data, filteredRecords),
+    [data, filteredRecords],
+  );
+  const modelOptions = React.useMemo(
+    () => data.models.map((model) => model.name),
+    [data.models],
+  );
 
   function resetFilters() {
     const nextFilters = createDefaultFilters(data);
@@ -71,7 +99,12 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
       />
 
       {activeTab === "stats" ? (
-        <StatsReport data={data} filters={filters} records={filteredRecords} metrics={metrics} />
+        <StatsReport
+          data={data}
+          filters={filters}
+          records={filteredRecords}
+          metrics={metrics}
+        />
       ) : (
         <DetailReport rows={detailRows} />
       )}
@@ -97,23 +130,18 @@ function ReportFilterPanel({
   return (
     <section className="relative z-20 rounded-md border border-slate-200 bg-white px-5 py-4 shadow-sm shadow-slate-100">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="w-[140px] shrink-0">
-          <Select className="h-10 rounded-md pl-3 focus:border-[#1155ff] focus:ring-blue-100" value={filters.range} onChange={(event) => onChange({ ...filters, range: event.target.value as TimeRange })} aria-label="时间范围">
-            <option value="last7">近7天</option>
-            <option value="last30">近30天</option>
-            <option value="custom">自定义</option>
-          </Select>
-        </div>
-
-        {filters.range === "custom" ? (
-          <div className="grid w-[260px] shrink-0 grid-cols-2 gap-2">
-            <input className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#1155ff] focus:ring-2 focus:ring-blue-100" type="date" value={filters.customStart} onChange={(event) => onChange({ ...filters, customStart: event.target.value })} />
-            <input className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-[#1155ff] focus:ring-2 focus:ring-blue-100" type="date" value={filters.customEnd} onChange={(event) => onChange({ ...filters, customEnd: event.target.value })} />
-          </div>
-        ) : null}
-
-        <FilterSelect ariaLabel="客户名称" className="w-[200px] shrink-0" value={filters.customerName} onChange={(value) => onChange({ ...filters, customerName: value })} options={["全部客户", ...customerOptions]} />
-        <ModelMultiSelect value={filters.modelNames} options={modelOptions} onChange={(modelNames) => onChange({ ...filters, modelNames })} />
+        <FilterSelect
+          ariaLabel="客户名称"
+          className="w-[200px] shrink-0"
+          value={filters.customerName}
+          onChange={(value) => onChange({ ...filters, customerName: value })}
+          options={["全部客户", ...customerOptions]}
+        />
+        <ModelMultiSelect
+          value={filters.modelNames}
+          options={modelOptions}
+          onChange={(modelNames) => onChange({ ...filters, modelNames })}
+        />
 
         <div className="ml-auto flex shrink-0 gap-2">
           {activeTab === "details" ? (
@@ -132,22 +160,53 @@ function ReportFilterPanel({
   );
 }
 
-function FilterSelect({ ariaLabel, className, value, options, onChange }: { ariaLabel: string; className?: string; value: string; options: string[]; onChange: (value: string) => void }) {
+function FilterSelect({
+  ariaLabel,
+  className,
+  value,
+  options,
+  onChange,
+}: {
+  ariaLabel: string;
+  className?: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
   return (
     <div className={className}>
-      <Select className="h-10 rounded-md pl-3 focus:border-[#1155ff] focus:ring-blue-100" value={value} onChange={(event) => onChange(event.target.value)} aria-label={ariaLabel}>
-        {options.map((option) => <option key={option}>{option}</option>)}
+      <Select
+        className="h-10 rounded-md pl-3 focus:border-[#1155ff] focus:ring-blue-100"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={ariaLabel}
+      >
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
       </Select>
     </div>
   );
 }
 
-function ModelMultiSelect({ value, options, onChange }: { value: string[]; options: string[]; onChange: (value: string[]) => void }) {
+function ModelMultiSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string[];
+  options: string[];
+  onChange: (value: string[]) => void;
+}) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const normalizedValue = value.length === 0 ? ["全部模型"] : value;
   const isAll = normalizedValue.includes("全部模型");
-  const display = isAll ? "全部模型" : normalizedValue.length === 1 ? normalizedValue[0] : `已选 ${normalizedValue.length} 个模型`;
+  const display = isAll
+    ? "全部模型"
+    : normalizedValue.length === 1
+      ? normalizedValue[0]
+      : `已选 ${normalizedValue.length} 个模型`;
 
   React.useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -163,7 +222,9 @@ function ModelMultiSelect({ value, options, onChange }: { value: string[]; optio
       return;
     }
     const withoutAll = normalizedValue.filter((item) => item !== "全部模型");
-    const nextValue = withoutAll.includes(model) ? withoutAll.filter((item) => item !== model) : [...withoutAll, model];
+    const nextValue = withoutAll.includes(model)
+      ? withoutAll.filter((item) => item !== model)
+      : [...withoutAll, model];
     onChange(nextValue.length === 0 ? ["全部模型"] : nextValue);
   }
 
@@ -177,12 +238,21 @@ function ModelMultiSelect({ value, options, onChange }: { value: string[]; optio
         type="button"
       >
         <span className="truncate">{display}</span>
-        <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`size-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
       {open ? (
-        <div className="absolute left-0 top-11 z-30 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/70" role="listbox" aria-label="模型">
+        <div
+          className="absolute left-0 top-11 z-30 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/70"
+          role="listbox"
+          aria-label="模型"
+        >
           {["全部模型", ...options].map((model) => {
-            const checked = model === "全部模型" ? isAll : !isAll && normalizedValue.includes(model);
+            const checked =
+              model === "全部模型"
+                ? isAll
+                : !isAll && normalizedValue.includes(model);
             return (
               <button
                 key={model}
@@ -192,7 +262,9 @@ function ModelMultiSelect({ value, options, onChange }: { value: string[]; optio
                 role="option"
                 aria-selected={checked}
               >
-                <span className={`flex size-4 items-center justify-center rounded border ${checked ? "border-[#1155ff] bg-[#1155ff] text-white" : "border-slate-300"}`}>
+                <span
+                  className={`flex size-4 items-center justify-center rounded border ${checked ? "border-[#1155ff] bg-[#1155ff] text-white" : "border-slate-300"}`}
+                >
                   {checked ? <Check className="size-3" /> : null}
                 </span>
                 <span className="truncate">{model}</span>
@@ -205,51 +277,88 @@ function ModelMultiSelect({ value, options, onChange }: { value: string[]; optio
   );
 }
 
-function StatsReport({ filters, records, metrics }: { data: DealerData; filters: ReportFilters; records: ConsumptionRecord[]; metrics: ReturnType<typeof buildReportMetrics> }) {
-  const [trendMetric, setTrendMetric] = React.useState<ReportTrendMetric>("amount");
-  const timeSeries = React.useMemo(() => buildTimeSeries(records, filters), [filters, records]);
-  const modelNames = React.useMemo(() => unique(records.map((record) => record.modelName)), [records]);
+function StatsReport({
+  filters,
+  records,
+  metrics,
+}: {
+  data: DealerData;
+  filters: ReportFilters;
+  records: ConsumptionRecord[];
+  metrics: ReturnType<typeof buildReportMetrics>;
+}) {
+  const [trendMetric, setTrendMetric] =
+    React.useState<ReportTrendMetric>("amount");
+  const timeSeries = React.useMemo(
+    () => buildTimeSeries(records, filters),
+    [filters, records],
+  );
+  const modelNames = React.useMemo(
+    () => unique(records.map((record) => record.modelName)),
+    [records],
+  );
   const trendItems = React.useMemo(
     () => [
-      { label: "消耗金额", title: "消耗金额趋势图表", metric: "amount" as const, points: timeSeries.map((item) => ({ label: item.label, value: item.amount })) },
-      { label: "消耗Tokens", title: "消耗Tokens趋势图表", metric: "tokens" as const, points: timeSeries.map((item) => ({ label: item.label, value: item.tokens })) },
-      { label: "调用次数", title: "调用次数趋势图表", metric: "calls" as const, points: timeSeries.map((item) => ({ label: item.label, value: item.count })) },
+      {
+        label: "消耗金额",
+        title: "消耗金额趋势图表",
+        metric: "amount" as const,
+        points: timeSeries.map((item) => ({
+          label: item.label,
+          value: item.amount,
+        })),
+      },
+      {
+        label: "消耗Tokens",
+        title: "消耗Tokens趋势图表",
+        metric: "tokens" as const,
+        points: timeSeries.map((item) => ({
+          label: item.label,
+          value: item.tokens,
+        })),
+      },
+      {
+        label: "调用次数",
+        title: "调用次数趋势图表",
+        metric: "calls" as const,
+        points: timeSeries.map((item) => ({
+          label: item.label,
+          value: item.count,
+        })),
+      },
     ],
     [timeSeries],
   );
-  const activeTrend = trendItems.find((item) => item.metric === trendMetric) ?? trendItems[0];
+  const activeTrend =
+    trendItems.find((item) => item.metric === trendMetric) ?? trendItems[0];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-4 gap-4">
-        <ReportMetric icon={Wallet} tone="cyan" label="消费总额（¥）" value={formatCurrency(metrics.amount)} />
-        <ReportMetric icon={Coins} tone="pink" label="消耗Token总数" value={formatTokenOverview(metrics.tokens)} />
-        <ReportMetric icon={Zap} tone="indigo" label="请求总次数" value={formatNumber(metrics.requestCount)} />
-        <ReportMetric icon={Users} tone="blue" label="客户总数" value={formatNumber(metrics.customerCount)} />
-      </div>
-
-      <div>
-        <div className="flex items-center gap-3">
-          <LineChart className="size-5 text-slate-400" />
-          <h2 className="text-lg font-bold text-slate-950">趋势分析</h2>
-        </div>
-        <section className="mt-4 rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
-          <div className="flex flex-wrap items-center gap-10">
-            <div className="flex items-center gap-10">
-              {trendItems.map((item) => (
-                <button
-                  key={item.metric}
-                  className={`h-11 border-b-2 px-1 text-base font-semibold transition-colors ${trendMetric === item.metric ? "border-[#1155ff] text-[#1155ff]" : "border-transparent text-slate-400 hover:text-slate-600"}`}
-                  onClick={() => setTrendMetric(item.metric)}
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <ReportTrendChart title={activeTrend.title} metric={activeTrend.metric} points={activeTrend.points} />
-        </section>
+        <ReportMetric
+          icon={Wallet}
+          tone="cyan"
+          label="消费总额（¥）"
+          value={formatCurrency(metrics.amount)}
+        />
+        <ReportMetric
+          icon={Coins}
+          tone="pink"
+          label="消耗Token总数"
+          value={formatTokenOverview(metrics.tokens)}
+        />
+        <ReportMetric
+          icon={Zap}
+          tone="indigo"
+          label="请求总次数"
+          value={formatNumber(metrics.requestCount)}
+        />
+        <ReportMetric
+          icon={Users}
+          tone="blue"
+          label="客户总数"
+          value={formatNumber(metrics.customerCount)}
+        />
       </div>
 
       <section className="rounded-md border border-slate-200 bg-white p-6 shadow-sm shadow-slate-100">
@@ -258,9 +367,39 @@ function StatsReport({ filters, records, metrics }: { data: DealerData; filters:
           <h2 className="text-lg font-bold text-slate-950">模型数据分析</h2>
         </div>
         <div className="mt-5 space-y-4">
-          <TimeBarChart title="模型消耗金额" items={timeSeries.map((item) => ({ label: item.label, total: item.amount, byModel: item.amountByModel }))} modelNames={modelNames} formatValue={formatCurrency} tone="blue" />
-          <TimeBarChart title="模型消耗Tokens" items={timeSeries.map((item) => ({ label: item.label, total: item.tokens, byModel: item.tokensByModel }))} modelNames={modelNames} formatValue={formatNumber} tone="cyan" />
-          <TimeBarChart title="模型调用次数" items={timeSeries.map((item) => ({ label: item.label, total: item.count, byModel: item.countByModel }))} modelNames={modelNames} formatValue={(value) => `${formatNumber(value)} 次`} tone="pink" />
+          <TimeBarChart
+            title="模型消耗金额"
+            items={timeSeries.map((item) => ({
+              label: item.label,
+              total: item.amount,
+              byModel: item.amountByModel,
+            }))}
+            modelNames={modelNames}
+            formatValue={formatCurrency}
+            tone="blue"
+          />
+          <TimeBarChart
+            title="模型消耗Tokens"
+            items={timeSeries.map((item) => ({
+              label: item.label,
+              total: item.tokens,
+              byModel: item.tokensByModel,
+            }))}
+            modelNames={modelNames}
+            formatValue={formatNumber}
+            tone="cyan"
+          />
+          <TimeBarChart
+            title="模型调用次数"
+            items={timeSeries.map((item) => ({
+              label: item.label,
+              total: item.count,
+              byModel: item.countByModel,
+            }))}
+            modelNames={modelNames}
+            formatValue={(value) => `${formatNumber(value)} 次`}
+            tone="pink"
+          />
         </div>
       </section>
     </div>
@@ -273,24 +412,55 @@ function DetailReport({ rows }: { rows: DetailRow[] }) {
       <table className="min-w-full border-separate border-spacing-0 text-sm">
         <thead className="bg-slate-50 text-left text-slate-500">
           <tr>
-            {["客户名称", "客户状态", "消耗Token", "消费金额（¥）", "调用次数", "平均响应时间（ms）", "最后调用时间"].map((label) => (
-              <th key={label} className="h-12 whitespace-nowrap border-b border-slate-200 px-4 font-medium">{label}</th>
+            {[
+              "客户名称",
+              "客户状态",
+              "消耗Token",
+              "消费金额（¥）",
+              "调用次数",
+              "平均响应时间（ms）",
+              "最后调用时间",
+            ].map((label) => (
+              <th
+                key={label}
+                className="h-12 whitespace-nowrap border-b border-slate-200 px-4 font-medium"
+              >
+                {label}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <tr><td className="h-24 px-4 text-center text-slate-500" colSpan={7}>暂无匹配数据</td></tr>
+            <tr>
+              <td className="h-24 px-4 text-center text-slate-500" colSpan={7}>
+                暂无匹配数据
+              </td>
+            </tr>
           ) : null}
           {rows.map((row) => (
             <tr key={row.customerName} className="hover:bg-slate-50/70">
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{row.customerName}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{row.customerStatus}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{formatNumber(row.tokens)}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{formatCurrency(row.amount)}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{formatNumber(row.count)}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{formatNumber(row.averageDuration)}</td>
-              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">{row.lastCalledAt}</td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {row.customerName}
+              </td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {row.customerStatus}
+              </td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {formatNumber(row.tokens)}
+              </td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {formatCurrency(row.amount)}
+              </td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {formatNumber(row.count)}
+              </td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {formatNumber(row.averageDuration)}
+              </td>
+              <td className="border-b border-slate-100 px-4 py-3 text-slate-700">
+                {row.lastCalledAt}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -299,22 +469,53 @@ function DetailReport({ rows }: { rows: DetailRow[] }) {
   );
 }
 
-function ReportMetric({ icon: Icon, tone, label, value }: { icon: React.ComponentType<{ className?: string }>; tone: "cyan" | "pink" | "blue" | "indigo"; label: string; value: string }) {
+function ReportMetric({
+  icon: Icon,
+  tone,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  tone: "cyan" | "pink" | "blue" | "indigo";
+  label: string;
+  value: string;
+}) {
   const toneClasses = {
-    cyan: { card: "from-white to-cyan-50", icon: "border-cyan-200 bg-cyan-100/70 text-cyan-500" },
-    pink: { card: "from-white to-pink-50", icon: "border-pink-200 bg-pink-100/70 text-pink-400" },
-    blue: { card: "from-white to-blue-50", icon: "border-blue-200 bg-blue-100/70 text-blue-500" },
-    indigo: { card: "from-white to-blue-50", icon: "border-blue-200 bg-blue-100/70 text-[#1155ff]" },
+    cyan: {
+      card: "from-white to-cyan-50",
+      icon: "border-cyan-200 bg-cyan-100/70 text-cyan-500",
+    },
+    pink: {
+      card: "from-white to-pink-50",
+      icon: "border-pink-200 bg-pink-100/70 text-pink-400",
+    },
+    blue: {
+      card: "from-white to-blue-50",
+      icon: "border-blue-200 bg-blue-100/70 text-blue-500",
+    },
+    indigo: {
+      card: "from-white to-blue-50",
+      icon: "border-blue-200 bg-blue-100/70 text-[#1155ff]",
+    },
   }[tone];
 
   return (
-    <div className={`min-h-[112px] rounded-md border border-slate-200 bg-gradient-to-br ${toneClasses.card} p-5 shadow-sm shadow-slate-100`}>
+    <div
+      className={`min-h-[112px] rounded-md border border-slate-200 bg-gradient-to-br ${toneClasses.card} p-5 shadow-sm shadow-slate-100`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-xs text-slate-400">{label}</div>
-          <div className="mt-4 whitespace-nowrap text-[clamp(1.35rem,1.55vw,1.9rem)] font-semibold tracking-tight text-slate-950" title={value}>{value}</div>
+          <div
+            className="mt-4 whitespace-nowrap text-[clamp(1.35rem,1.55vw,1.9rem)] font-semibold tracking-tight text-slate-950"
+            title={value}
+          >
+            {value}
+          </div>
         </div>
-        <div className={`flex size-12 shrink-0 items-center justify-center rounded-full border ${toneClasses.icon}`}>
+        <div
+          className={`flex size-12 shrink-0 items-center justify-center rounded-full border ${toneClasses.icon}`}
+        >
           <Icon className="size-6" />
         </div>
       </div>
@@ -340,21 +541,40 @@ function ReportTrendChart({
   const chartMax = maxValue * 1.08;
   const polylinePoints = points
     .map((point, index) => {
-      const { x, y } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+      const { x, y } = getReportTrendPoint(
+        point,
+        index,
+        points.length,
+        chartMax,
+        plot,
+      );
       return `${x},${y}`;
     })
     .join(" ");
   const labelStep = points.length > 12 ? Math.ceil(points.length / 8) : 1;
   const visibleLabels = points
     .map((point, index) => ({ point, index }))
-    .filter(({ index }) => index === 0 || index === points.length - 1 || index % labelStep === 0);
-  const hoveredPoint = hoveredIndex === null ? null : getReportTrendPoint(points[hoveredIndex], hoveredIndex, points.length, chartMax, plot);
+    .filter(
+      ({ index }) =>
+        index === 0 || index === points.length - 1 || index % labelStep === 0,
+    );
+  const hoveredPoint =
+    hoveredIndex === null
+      ? null
+      : getReportTrendPoint(
+          points[hoveredIndex],
+          hoveredIndex,
+          points.length,
+          chartMax,
+          plot,
+        );
 
   React.useLayoutEffect(() => {
     const element = chartRef.current;
     if (!element) return;
 
-    const updateWidth = () => setChartWidth(Math.max(760, Math.round(element.clientWidth)));
+    const updateWidth = () =>
+      setChartWidth(Math.max(760, Math.round(element.clientWidth)));
     updateWidth();
 
     if (typeof ResizeObserver === "undefined") return;
@@ -368,60 +588,150 @@ function ReportTrendChart({
       {points.length === 0 ? (
         <div className="py-8 text-center text-sm text-slate-400">暂无数据</div>
       ) : (
-        <svg className="h-full w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={title}>
+        <svg
+          className="h-full w-full"
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          role="img"
+          aria-label={title}
+        >
           {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
             const y = plot.bottom - tick * (plot.bottom - plot.top);
             return (
               <g key={tick}>
-                <line x1={plot.left} x2={plot.right} y1={y} y2={y} stroke="#eef1f5" />
-                <text x={plot.left - 14} y={y + 6} fill="#9aa4b2" fontSize="16" fontWeight="600" textAnchor="end">
+                <line
+                  x1={plot.left}
+                  x2={plot.right}
+                  y1={y}
+                  y2={y}
+                  stroke="#eef1f5"
+                />
+                <text
+                  x={plot.left - 14}
+                  y={y + 6}
+                  fill="#9aa4b2"
+                  fontSize="16"
+                  fontWeight="600"
+                  textAnchor="end"
+                >
                   {formatReportTrendAxisValue(chartMax * tick, metric)}
                 </text>
               </g>
             );
           })}
           {points.map((point, index) => {
-            const { x } = getReportTrendPoint(point, index, points.length, chartMax, plot);
-            return <line key={`${point.label}-${index}`} x1={x} x2={x} y1={plot.top} y2={plot.bottom} stroke="#f3f5f8" />;
+            const { x } = getReportTrendPoint(
+              point,
+              index,
+              points.length,
+              chartMax,
+              plot,
+            );
+            return (
+              <line
+                key={`${point.label}-${index}`}
+                x1={x}
+                x2={x}
+                y1={plot.top}
+                y2={plot.bottom}
+                stroke="#f3f5f8"
+              />
+            );
           })}
-          <polyline points={polylinePoints} fill="none" stroke="#3a6fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline
+            points={polylinePoints}
+            fill="none"
+            stroke="#3a6fff"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
           {points.map((point, index) => {
-            const { x, y } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+            const { x, y } = getReportTrendPoint(
+              point,
+              index,
+              points.length,
+              chartMax,
+              plot,
+            );
             const isHovered = hoveredIndex === index;
             return (
-              <g key={`${point.label}-${index}`} onMouseEnter={() => setHoveredIndex(index)} onMouseLeave={() => setHoveredIndex(null)}>
-                <circle cx={x} cy={y} r={isHovered ? "5.5" : "4"} fill="#3a6fff" />
-                <circle cx={x} cy={y} r="18" fill="transparent" className="cursor-pointer" />
+              <g
+                key={`${point.label}-${index}`}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              >
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isHovered ? "5.5" : "4"}
+                  fill="#3a6fff"
+                />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="18"
+                  fill="transparent"
+                  className="cursor-pointer"
+                />
               </g>
             );
           })}
           {hoveredPoint ? (
             <g pointerEvents="none">
-              <line x1={hoveredPoint.x} x2={hoveredPoint.x} y1={plot.top} y2={plot.bottom} stroke="#94a3b8" strokeDasharray="4 4" />
+              <line
+                x1={hoveredPoint.x}
+                x2={hoveredPoint.x}
+                y1={plot.top}
+                y2={plot.bottom}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+              />
               <foreignObject
-                x={Math.min(Math.max(hoveredPoint.x + 12, plot.left), plot.right - 210)}
+                x={Math.min(
+                  Math.max(hoveredPoint.x + 12, plot.left),
+                  plot.right - 210,
+                )}
                 y={Math.max(hoveredPoint.y - 78, plot.top)}
                 width="200"
                 height="76"
               >
                 <div className="rounded-md border border-slate-100 bg-white/95 p-3 text-xs shadow-xl shadow-slate-200">
-                  <div className="font-semibold text-slate-950">{hoveredPoint.label}</div>
+                  <div className="font-semibold text-slate-950">
+                    {hoveredPoint.label}
+                  </div>
                   <div className="mt-2 flex items-center justify-between gap-3 text-slate-500">
                     <span>{getTrendMetricLabel(metric)}</span>
-                    <span className="font-semibold text-slate-900">{formatReportTrendTooltipValue(hoveredPoint.value, metric)}</span>
+                    <span className="font-semibold text-slate-900">
+                      {formatReportTrendTooltipValue(
+                        hoveredPoint.value,
+                        metric,
+                      )}
+                    </span>
                   </div>
                 </div>
               </foreignObject>
             </g>
           ) : null}
           {visibleLabels.map(({ point, index }) => {
-            const { x } = getReportTrendPoint(point, index, points.length, chartMax, plot);
+            const { x } = getReportTrendPoint(
+              point,
+              index,
+              points.length,
+              chartMax,
+              plot,
+            );
             const isFirst = index === 0;
             const isLast = index === points.length - 1;
             return (
               <text
                 key={`${point.label}-${index}`}
-                x={isFirst ? Math.max(x, plot.left) : isLast ? Math.min(x, plot.right) : x}
+                x={
+                  isFirst
+                    ? Math.max(x, plot.left)
+                    : isLast
+                      ? Math.min(x, plot.right)
+                      : x
+                }
                 y={chartHeight - 18}
                 fill="#9aa4b2"
                 fontSize="16"
@@ -445,7 +755,10 @@ function getReportTrendPoint(
   maxValue: number,
   plot: ReturnType<typeof getReportTrendPlot>,
 ) {
-  const x = total === 1 ? plot.left : plot.left + (index / (total - 1)) * (plot.right - plot.left);
+  const x =
+    total === 1
+      ? plot.left
+      : plot.left + (index / (total - 1)) * (plot.right - plot.left);
   const y = plot.bottom - (point.value / maxValue) * (plot.bottom - plot.top);
   return { ...point, x, y };
 }
@@ -471,7 +784,10 @@ function formatReportTrendAxisValue(value: number, metric: ReportTrendMetric) {
   return `${Math.round(value)}`;
 }
 
-function formatReportTrendTooltipValue(value: number, metric: ReportTrendMetric) {
+function formatReportTrendTooltipValue(
+  value: number,
+  metric: ReportTrendMetric,
+) {
   if (metric === "amount") return formatCurrency(value);
   if (metric === "tokens") return `${formatNumber(value)} Tokens`;
   return `${formatNumber(value)} 次`;
@@ -484,7 +800,8 @@ function formatCurrencyCompact(value: number) {
 }
 
 function formatTokenAxis(value: number) {
-  if (value >= 100_000_000) return `${trimMetricNumber(value / 100_000_000, 1)}亿`;
+  if (value >= 100_000_000)
+    return `${trimMetricNumber(value / 100_000_000, 1)}亿`;
   if (value >= 1_000_000) return `${trimMetricNumber(value / 1_000_000, 0)}M`;
   if (value >= 10_000) return `${trimMetricNumber(value / 10_000, 0)}万`;
   return `${Math.round(value)}`;
@@ -498,7 +815,11 @@ function TimeBarChart({
   tone,
 }: {
   title: string;
-  items: Array<{ label: string; total: number; byModel: Record<string, number> }>;
+  items: Array<{
+    label: string;
+    total: number;
+    byModel: Record<string, number>;
+  }>;
   modelNames: string[];
   formatValue: (value: number) => string;
   tone: "blue" | "cyan" | "pink";
@@ -510,7 +831,8 @@ function TimeBarChart({
   const maxValue = Math.max(...items.map((item) => item.total), 1);
   const chartMax = maxValue * 1.15;
   const barAreaWidth = plot.right - plot.left;
-  const slotWidth = items.length === 0 ? barAreaWidth : barAreaWidth / items.length;
+  const slotWidth =
+    items.length === 0 ? barAreaWidth : barAreaWidth / items.length;
   const barWidth = Math.min(42, slotWidth * 0.52);
   const barRadius = 8;
   const minSegmentHeight = 8;
@@ -521,41 +843,85 @@ function TimeBarChart({
     <section className="rounded-md border border-slate-100 bg-slate-50/60 p-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,auto)]">
         <div className="flex min-w-0 items-center gap-3">
-          <h3 className="shrink-0 text-base font-semibold text-slate-900">{title}</h3>
+          <h3 className="shrink-0 text-base font-semibold text-slate-900">
+            {title}
+          </h3>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-start gap-x-4 gap-y-2 lg:justify-end">
           {modelNames.map((modelName, index) => (
-            <span key={modelName} className="inline-flex max-w-[180px] items-center gap-2 text-sm font-medium text-slate-500">
-              <span className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: palette[index % palette.length] }} />
+            <span
+              key={modelName}
+              className="inline-flex max-w-[180px] items-center gap-2 text-sm font-medium text-slate-500"
+            >
+              <span
+                className="size-3 shrink-0 rounded-sm"
+                style={{ backgroundColor: palette[index % palette.length] }}
+              />
               <span className="truncate">{modelName}</span>
             </span>
           ))}
         </div>
       </div>
       <div className="mt-4 h-[330px] overflow-hidden">
-        {items.length === 0 ? <div className="py-8 text-center text-sm text-slate-400">暂无数据</div> : null}
+        {items.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400">
+            暂无数据
+          </div>
+        ) : null}
         {items.length > 0 ? (
           <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`}>
             {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
               const y = plot.bottom - tick * (plot.bottom - plot.top);
               return (
                 <g key={tick}>
-                  <line x1={plot.left} x2={plot.right} y1={y} y2={y} stroke="#e8edf3" />
-                  <text x={plot.left - 12} y={y + 5} fill="#94a3b8" fontSize="14" fontWeight="600" textAnchor="end">
+                  <line
+                    x1={plot.left}
+                    x2={plot.right}
+                    y1={y}
+                    y2={y}
+                    stroke="#e8edf3"
+                  />
+                  <text
+                    x={plot.left - 12}
+                    y={y + 5}
+                    fill="#94a3b8"
+                    fontSize="14"
+                    fontWeight="600"
+                    textAnchor="end"
+                  >
                     {formatCompactValue(chartMax * tick, tone)}
                   </text>
                 </g>
               );
             })}
-            <line x1={plot.left} x2={plot.left} y1={plot.top} y2={plot.bottom} stroke="#cbd5e1" />
-            <line x1={plot.left} x2={plot.right} y1={plot.bottom} y2={plot.bottom} stroke="#cbd5e1" />
+            <line
+              x1={plot.left}
+              x2={plot.left}
+              y1={plot.top}
+              y2={plot.bottom}
+              stroke="#cbd5e1"
+            />
+            <line
+              x1={plot.left}
+              x2={plot.right}
+              y1={plot.bottom}
+              y2={plot.bottom}
+              stroke="#cbd5e1"
+            />
             {items.map((item, index) => {
-              const x = plot.left + index * slotWidth + (slotWidth - barWidth) / 2;
+              const x =
+                plot.left + index * slotWidth + (slotWidth - barWidth) / 2;
               let stackedOffset = 0;
               const visibleSegments = modelNames
                 .map((modelName, modelIndex) => {
                   const segmentValue = item.byModel[modelName] ?? 0;
-                  const segmentHeight = segmentValue <= 0 ? 0 : Math.max(minSegmentHeight, (segmentValue / chartMax) * (plot.bottom - plot.top));
+                  const segmentHeight =
+                    segmentValue <= 0
+                      ? 0
+                      : Math.max(
+                          minSegmentHeight,
+                          (segmentValue / chartMax) * (plot.bottom - plot.top),
+                        );
                   return {
                     modelName,
                     modelIndex,
@@ -564,28 +930,62 @@ function TimeBarChart({
                 })
                 .filter((segment) => segment.height > 0);
               const labelStep = Math.ceil(items.length / 8);
-              const showLabel = items.length <= 12 || index === 0 || index === items.length - 1 || (index % labelStep === 0 && index < items.length - 2);
+              const showLabel =
+                items.length <= 12 ||
+                index === 0 ||
+                index === items.length - 1 ||
+                (index % labelStep === 0 && index < items.length - 2);
               return (
-                <g key={`${item.label}-${index}`} onMouseEnter={() => setHoveredIndex(index)} onMouseLeave={() => setHoveredIndex(null)}>
+                <g
+                  key={`${item.label}-${index}`}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                >
                   {visibleSegments.map((segment, segmentIndex) => {
                     const y = plot.bottom - stackedOffset - segment.height;
                     stackedOffset += segment.height;
                     const isBottomSegment = segmentIndex === 0;
-                    const isTopSegment = segmentIndex === visibleSegments.length - 1;
+                    const isTopSegment =
+                      segmentIndex === visibleSegments.length - 1;
 
                     return (
                       <path
                         key={segment.modelName}
                         className="cursor-pointer transition-opacity"
-                        d={roundedBarSegmentPath(x, y, barWidth, segment.height, barRadius, { top: isTopSegment, bottom: isBottomSegment })}
+                        d={roundedBarSegmentPath(
+                          x,
+                          y,
+                          barWidth,
+                          segment.height,
+                          barRadius,
+                          { top: isTopSegment, bottom: isBottomSegment },
+                        )}
                         fill={palette[segment.modelIndex % palette.length]}
-                        opacity={hoveredIndex === null || hoveredIndex === index ? 1 : 0.45}
+                        opacity={
+                          hoveredIndex === null || hoveredIndex === index
+                            ? 1
+                            : 0.45
+                        }
                       />
                     );
-                    })}
-                  <rect className="cursor-pointer" x={x - 8} y={plot.top} width={barWidth + 16} height={plot.bottom - plot.top} fill="transparent" />
+                  })}
+                  <rect
+                    className="cursor-pointer"
+                    x={x - 8}
+                    y={plot.top}
+                    width={barWidth + 16}
+                    height={plot.bottom - plot.top}
+                    fill="transparent"
+                  />
                   {showLabel ? (
-                    <text x={x + barWidth / 2} y={plot.bottom + 28} fill="#64748b" fontSize="14" fontWeight="600" textAnchor="middle">
+                    <text
+                      x={x + barWidth / 2}
+                      y={plot.bottom + 28}
+                      fill="#64748b"
+                      fontSize="14"
+                      fontWeight="600"
+                      textAnchor="middle"
+                    >
                       {item.label}
                     </text>
                   ) : null}
@@ -593,17 +993,38 @@ function TimeBarChart({
               );
             })}
             {hovered ? (
-              <foreignObject x={Math.min(plot.left + (hoveredIndex ?? 0) * slotWidth + 18, plot.right - 250)} y="36" width="250" height="190">
+              <foreignObject
+                x={Math.min(
+                  plot.left + (hoveredIndex ?? 0) * slotWidth + 18,
+                  plot.right - 250,
+                )}
+                y="36"
+                width="250"
+                height="190"
+              >
                 <div className="rounded-md border border-slate-200 bg-white/95 p-3 text-sm shadow-lg shadow-slate-200">
-                  <div className="truncate text-base font-semibold text-slate-950">{hovered.label}</div>
-                  <div className="mt-1 font-semibold text-slate-700">总计 {formatValue(hovered.total)}</div>
+                  <div className="truncate text-base font-semibold text-slate-950">
+                    {hovered.label}
+                  </div>
+                  <div className="mt-1 font-semibold text-slate-700">
+                    总计 {formatValue(hovered.total)}
+                  </div>
                   <div className="mt-2 space-y-1.5">
-                    {modelNames.filter((modelName) => (hovered.byModel[modelName] ?? 0) > 0).map((modelName) => (
-                      <div key={modelName} className="flex items-center justify-between gap-2 text-slate-600">
-                        <span className="truncate">{modelName}</span>
-                        <span className="shrink-0 font-medium">{formatValue(hovered.byModel[modelName] ?? 0)}</span>
-                      </div>
-                    ))}
+                    {modelNames
+                      .filter(
+                        (modelName) => (hovered.byModel[modelName] ?? 0) > 0,
+                      )
+                      .map((modelName) => (
+                        <div
+                          key={modelName}
+                          className="flex items-center justify-between gap-2 text-slate-600"
+                        >
+                          <span className="truncate">{modelName}</span>
+                          <span className="shrink-0 font-medium">
+                            {formatValue(hovered.byModel[modelName] ?? 0)}
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 </div>
               </foreignObject>
@@ -615,20 +1036,35 @@ function TimeBarChart({
   );
 }
 
-function roundedBarSegmentPath(x: number, y: number, width: number, height: number, radius: number, corners: { top: boolean; bottom: boolean }) {
+function roundedBarSegmentPath(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  corners: { top: boolean; bottom: boolean },
+) {
   const right = x + width;
   const bottom = y + height;
   const topRadius = corners.top ? Math.min(radius, width / 2, height / 2) : 0;
-  const bottomRadius = corners.bottom ? Math.min(radius, width / 2, height / 2) : 0;
+  const bottomRadius = corners.bottom
+    ? Math.min(radius, width / 2, height / 2)
+    : 0;
 
   return [
     `M ${x + topRadius} ${y}`,
     `H ${right - topRadius}`,
-    corners.top ? `Q ${right} ${y} ${right} ${y + topRadius}` : `L ${right} ${y}`,
+    corners.top
+      ? `Q ${right} ${y} ${right} ${y + topRadius}`
+      : `L ${right} ${y}`,
     `V ${bottom - bottomRadius}`,
-    corners.bottom ? `Q ${right} ${bottom} ${right - bottomRadius} ${bottom}` : `L ${right} ${bottom}`,
+    corners.bottom
+      ? `Q ${right} ${bottom} ${right - bottomRadius} ${bottom}`
+      : `L ${right} ${bottom}`,
     `H ${x + bottomRadius}`,
-    corners.bottom ? `Q ${x} ${bottom} ${x} ${bottom - bottomRadius}` : `L ${x} ${bottom}`,
+    corners.bottom
+      ? `Q ${x} ${bottom} ${x} ${bottom - bottomRadius}`
+      : `L ${x} ${bottom}`,
     `V ${y + topRadius}`,
     corners.top ? `Q ${x} ${y} ${x + topRadius} ${y}` : `L ${x} ${y}`,
     "Z",
@@ -648,14 +1084,20 @@ function createDefaultFilters(data: DealerData): ReportFilters {
 function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
   const existingIds = new Set(data.consumptions.map((record) => record.id));
   const generatedRecords: ConsumptionRecord[] = [];
-  const availableModels = data.models.filter((model) => model.status === "可用");
-  const normalizedRecords = data.consumptions.map((record) => normalizeReportRecord(data, record));
+  const availableModels = data.models.filter(
+    (model) => model.status === "可用",
+  );
+  const normalizedRecords = data.consumptions.map((record) =>
+    normalizeReportRecord(data, record),
+  );
   const reportStart = startOfDay(now);
   reportStart.setDate(reportStart.getDate() - 44);
 
   for (const [customerIndex, customer] of data.customers.entries()) {
     const customerCreatedAt = parseLocalDateTime(customer.createdAt);
-    const customerApiKeys = data.apiKeys.filter((key) => key.customerName === customer.company && key.status === "已启用");
+    const customerApiKeys = data.apiKeys.filter(
+      (key) => key.customerName === customer.company && key.status === "已启用",
+    );
     const primaryModels = customerApiKeys.map((key) => key.modelName);
     const fallbackModels = availableModels
       .filter((model) => !primaryModels.includes(model.name))
@@ -663,7 +1105,9 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
       .slice(0, 2)
       .map((model) => model.name);
     const customerModels = unique([...primaryModels, ...fallbackModels])
-      .filter((modelName) => data.models.some((model) => model.name === modelName))
+      .filter((modelName) =>
+        data.models.some((model) => model.name === modelName),
+      )
       .slice(0, 3);
 
     for (let dayIndex = 0; dayIndex < 45; dayIndex += 1) {
@@ -674,7 +1118,9 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
       }
 
       for (const [modelIndex, modelName] of customerModels.entries()) {
-        const isRestDay = customer.status !== "正常" && stableNumber(`${customer.id}-${dayIndex}-rest`, 5) === 0;
+        const isRestDay =
+          customer.status !== "正常" &&
+          stableNumber(`${customer.id}-${dayIndex}-rest`, 5) === 0;
         if (isRestDay) {
           continue;
         }
@@ -682,22 +1128,59 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
         const model = data.models.find((item) => item.name === modelName);
         const modelType = model?.type ?? "对话补全";
         const baseInputTokens = modelType === "视频" ? 1_600_000 : 24_000_000;
-        const customerFactor = customer.status === "正常" ? 1 : customer.status === "未激活" ? 0.24 : 0.58;
-        const modelFactor = modelName.includes("Seedance") ? 0.42 : modelName.includes("Qwen") ? 0.82 : 1;
+        const customerFactor =
+          customer.status === "正常"
+            ? 1
+            : customer.status === "未激活"
+              ? 0.24
+              : 0.58;
+        const modelFactor = modelName.includes("Seedance")
+          ? 0.42
+          : modelName.includes("Qwen")
+            ? 0.82
+            : 1;
         const dayWave = 0.88 + (dayIndex % 7) * 0.035;
-        const noise = stableNumber(`${customer.id}-${modelName}-noise-${dayIndex}`, 16) / 100;
-        const inputTokens = Math.max(180_000, Math.round(baseInputTokens * customerFactor * modelFactor * (dayWave + noise)));
-        const outputRatio = modelType === "视频" ? 0.52 : 0.36 + stableNumber(`${customer.id}-${modelName}-ratio-${dayIndex}`, 12) / 100;
+        const noise =
+          stableNumber(`${customer.id}-${modelName}-noise-${dayIndex}`, 16) /
+          100;
+        const inputTokens = Math.max(
+          180_000,
+          Math.round(
+            baseInputTokens * customerFactor * modelFactor * (dayWave + noise),
+          ),
+        );
+        const outputRatio =
+          modelType === "视频"
+            ? 0.52
+            : 0.36 +
+              stableNumber(
+                `${customer.id}-${modelName}-ratio-${dayIndex}`,
+                12,
+              ) /
+                100;
         const outputTokens = Math.round(inputTokens * outputRatio);
         const totalTokens = inputTokens + outputTokens;
         const inputPrice = model?.inputPrice ?? 6;
         const outputPrice = model?.outputPrice ?? 18;
-        const amount = roundCurrency((inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice);
-        const hour = 9 + stableNumber(`${customer.id}-${modelName}-hour-${dayIndex}`, 10);
-        const minute = stableNumber(`${customer.id}-${modelName}-minute-${dayIndex}`, 60);
+        const amount = roundCurrency(
+          (inputTokens / 1_000_000) * inputPrice +
+            (outputTokens / 1_000_000) * outputPrice,
+        );
+        const hour =
+          9 + stableNumber(`${customer.id}-${modelName}-hour-${dayIndex}`, 10);
+        const minute = stableNumber(
+          `${customer.id}-${modelName}-minute-${dayIndex}`,
+          60,
+        );
         const calledAt = `${formatDate(day)} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-        const apiKey = customerApiKeys.find((key) => key.modelName === modelName);
-        const id = `report-${customer.id}-${modelName}-${formatDate(day)}`.replace(/\s+/g, "-");
+        const apiKey = customerApiKeys.find(
+          (key) => key.modelName === modelName,
+        );
+        const id =
+          `report-${customer.id}-${modelName}-${formatDate(day)}`.replace(
+            /\s+/g,
+            "-",
+          );
 
         if (existingIds.has(id)) {
           continue;
@@ -726,14 +1209,20 @@ function buildReportConsumptionRecords(data: DealerData): ConsumptionRecord[] {
   return [...normalizedRecords, ...generatedRecords];
 }
 
-function normalizeReportRecord(data: DealerData, record: ConsumptionRecord): ConsumptionRecord {
+function normalizeReportRecord(
+  data: DealerData,
+  record: ConsumptionRecord,
+): ConsumptionRecord {
   const model = data.models.find((item) => item.name === record.modelName);
   const inputScale = record.inputTokens > 500_000_000 ? 1000 : 1;
   const outputScale = record.outputTokens > 500_000_000 ? 1000 : 1;
   const inputTokens = Math.round(record.inputTokens / inputScale);
   const outputTokens = Math.round(record.outputTokens / outputScale);
   const totalTokens = inputTokens + outputTokens;
-  const amount = roundCurrency((inputTokens / 1_000_000) * (model?.inputPrice ?? 6) + (outputTokens / 1_000_000) * (model?.outputPrice ?? 18));
+  const amount = roundCurrency(
+    (inputTokens / 1_000_000) * (model?.inputPrice ?? 6) +
+      (outputTokens / 1_000_000) * (model?.outputPrice ?? 18),
+  );
 
   return {
     ...record,
@@ -744,24 +1233,38 @@ function normalizeReportRecord(data: DealerData, record: ConsumptionRecord): Con
   };
 }
 
-function filterConsumptionRecords(data: DealerData, records: ConsumptionRecord[], filters: ReportFilters) {
+function filterConsumptionRecords(
+  data: DealerData,
+  records: ConsumptionRecord[],
+  filters: ReportFilters,
+) {
   const { start, end } = getDateRange(filters);
 
   return records.filter((record) => {
     const calledAt = parseLocalDateTime(record.calledAt);
-    return calledAt >= start
-      && calledAt < end
-      && record.status === "成功"
-      && (filters.customerName === "全部客户" || record.customerName === filters.customerName)
-      && (filters.modelNames.includes("全部模型") || filters.modelNames.includes(record.modelName));
+    return (
+      calledAt >= start &&
+      calledAt < end &&
+      record.status === "成功" &&
+      (filters.customerName === "全部客户" ||
+        record.customerName === filters.customerName) &&
+      (filters.modelNames.includes("全部模型") ||
+        filters.modelNames.includes(record.modelName))
+    );
   });
 }
 
 function buildReportMetrics(records: ConsumptionRecord[]) {
   const customerNames = new Set(records.map((record) => record.customerName));
-  const tokens = records.reduce((sum, record) => sum + record.inputTokens + record.outputTokens, 0);
+  const tokens = records.reduce(
+    (sum, record) => sum + record.inputTokens + record.outputTokens,
+    0,
+  );
   const amount = records.reduce((sum, record) => sum + record.amount, 0);
-  const requestCount = records.reduce((sum, record) => sum + estimateRequestCount(record), 0);
+  const requestCount = records.reduce(
+    (sum, record) => sum + estimateRequestCount(record),
+    0,
+  );
 
   return {
     customerCount: customerNames.size,
@@ -771,9 +1274,19 @@ function buildReportMetrics(records: ConsumptionRecord[]) {
   };
 }
 
-function buildDetailRows(data: DealerData, records: ConsumptionRecord[]): DetailRow[] {
-  const customers = new Map(data.customers.map((customer) => [customer.company, customer]));
-  const logsByCustomer = new Map(data.usageLogs.map((log) => [`${log.customerName}-${log.modelName}`, log.durationMs]));
+function buildDetailRows(
+  data: DealerData,
+  records: ConsumptionRecord[],
+): DetailRow[] {
+  const customers = new Map(
+    data.customers.map((customer) => [customer.company, customer]),
+  );
+  const logsByCustomer = new Map(
+    data.usageLogs.map((log) => [
+      `${log.customerName}-${log.modelName}`,
+      log.durationMs,
+    ]),
+  );
   const grouped = new Map<string, DetailRow>();
 
   for (const record of records) {
@@ -788,21 +1301,34 @@ function buildDetailRows(data: DealerData, records: ConsumptionRecord[]): Detail
       lastCalledAt: record.calledAt,
     };
     const requestCount = estimateRequestCount(record);
-    const duration = logsByCustomer.get(`${record.customerName}-${record.modelName}`) ?? estimateDuration(record);
+    const duration =
+      logsByCustomer.get(`${record.customerName}-${record.modelName}`) ??
+      estimateDuration(record);
     current.tokens += record.inputTokens + record.outputTokens;
     current.amount += record.amount;
     current.count += requestCount;
     current.averageDuration += duration * requestCount;
-    current.lastCalledAt = parseLocalDateTime(record.calledAt) > parseLocalDateTime(current.lastCalledAt) ? record.calledAt : current.lastCalledAt;
+    current.lastCalledAt =
+      parseLocalDateTime(record.calledAt) >
+      parseLocalDateTime(current.lastCalledAt)
+        ? record.calledAt
+        : current.lastCalledAt;
     grouped.set(record.customerName, current);
   }
 
-  return [...grouped.values()].map((row) => ({ ...row, averageDuration: row.count === 0 ? 0 : Math.round(row.averageDuration / row.count) }));
+  return [...grouped.values()].map((row) => ({
+    ...row,
+    averageDuration:
+      row.count === 0 ? 0 : Math.round(row.averageDuration / row.count),
+  }));
 }
 
 function buildTimeSeries(records: ConsumptionRecord[], filters: ReportFilters) {
   const { start, end } = getDateRange(filters);
-  const dayCount = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
+  const dayCount = Math.max(
+    1,
+    Math.ceil((end.getTime() - start.getTime()) / 86_400_000),
+  );
   const buckets = Array.from({ length: dayCount }, (_, index) => {
     const date = addDays(start, index);
     return {
@@ -820,19 +1346,42 @@ function buildTimeSeries(records: ConsumptionRecord[], filters: ReportFilters) {
 
   for (const record of records) {
     const calledAt = parseLocalDateTime(record.calledAt);
-    const bucket = buckets.find((item) => calledAt >= item.start && calledAt < item.end);
+    const bucket = buckets.find(
+      (item) => calledAt >= item.start && calledAt < item.end,
+    );
     if (!bucket) continue;
     const tokens = record.inputTokens + record.outputTokens;
     const requestCount = estimateRequestCount(record);
     bucket.amount += record.amount;
     bucket.tokens += tokens;
     bucket.count += requestCount;
-    bucket.amountByModel[record.modelName] = (bucket.amountByModel[record.modelName] ?? 0) + record.amount;
-    bucket.tokensByModel[record.modelName] = (bucket.tokensByModel[record.modelName] ?? 0) + tokens;
-    bucket.countByModel[record.modelName] = (bucket.countByModel[record.modelName] ?? 0) + requestCount;
+    bucket.amountByModel[record.modelName] =
+      (bucket.amountByModel[record.modelName] ?? 0) + record.amount;
+    bucket.tokensByModel[record.modelName] =
+      (bucket.tokensByModel[record.modelName] ?? 0) + tokens;
+    bucket.countByModel[record.modelName] =
+      (bucket.countByModel[record.modelName] ?? 0) + requestCount;
   }
 
-  return buckets.map(({ label, amount, tokens, count, amountByModel, tokensByModel, countByModel }) => ({ label, amount, tokens, count, amountByModel, tokensByModel, countByModel }));
+  return buckets.map(
+    ({
+      label,
+      amount,
+      tokens,
+      count,
+      amountByModel,
+      tokensByModel,
+      countByModel,
+    }) => ({
+      label,
+      amount,
+      tokens,
+      count,
+      amountByModel,
+      tokensByModel,
+      countByModel,
+    }),
+  );
 }
 
 function getDateRange(filters: ReportFilters) {
@@ -896,7 +1445,9 @@ function trimMetricNumber(value: number, digits: number) {
 
 function estimateRequestCount(record: ConsumptionRecord) {
   const totalTokens = record.inputTokens + record.outputTokens;
-  const averageTokensPerRequest = record.modelName.includes("Seedance") ? 900_000 : 180_000;
+  const averageTokensPerRequest = record.modelName.includes("Seedance")
+    ? 900_000
+    : 180_000;
   return Math.max(1, Math.round(totalTokens / averageTokensPerRequest));
 }
 
@@ -947,7 +1498,14 @@ function roundCurrency(value: number) {
 function estimateDuration(record: ConsumptionRecord) {
   const tokens = record.inputTokens + record.outputTokens;
   const baseDuration = record.modelName.includes("Video") ? 8_000 : 1_200;
-  return Math.round(baseDuration + tokens / 420 + stableNumber(`${record.customerName}-${record.modelName}-${record.calledAt}`, 1_600));
+  return Math.round(
+    baseDuration +
+      tokens / 420 +
+      stableNumber(
+        `${record.customerName}-${record.modelName}-${record.calledAt}`,
+        1_600,
+      ),
+  );
 }
 
 function unique(values: string[]) {
