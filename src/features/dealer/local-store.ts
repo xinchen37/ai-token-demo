@@ -274,17 +274,19 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
       const productWithAllowedModels = normalizeProductModels(product);
       if (
         productWithAllowedModels.id === "prod-001" &&
-        productWithAllowedModels.name === "通用对话套餐-标准版" &&
-        productWithAllowedModels.monthlyFee === 19800 &&
-        productWithAllowedModels.tokenLimitM === "1000" &&
-        productWithAllowedModels.monthlyTokenM === "1000"
+        productWithAllowedModels.name === "通用对话套餐-标准版"
       ) {
         return {
           ...productWithAllowedModels,
+          packageMode: "不限时按量" as const,
+          inputPrice: 0,
+          outputPrice: 0,
+          cachePrice: 0,
           tokenLimitM: "不限",
           monthlyTokenM: "不限",
-          monthlyFee: 200,
-          discount: 90,
+          monthlyFee: 0,
+          discount: 100,
+          billingMode: "按量" as const,
         };
       }
       if (
@@ -293,12 +295,12 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
       ) {
         return {
           ...productWithAllowedModels,
-          packageMode: "按量包月" as const,
-          inputPrice: 1500,
+          packageMode: "按金额包月" as const,
+          inputPrice: 150,
           tokenLimitM: "200",
           monthlyTokenM: "200",
           monthlyFee: 1500,
-          billingMode: "按量" as const,
+          billingMode: "套餐" as const,
         };
       }
       return productWithAllowedModels;

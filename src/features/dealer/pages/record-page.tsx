@@ -1144,15 +1144,11 @@ function ProductCardGrid({
         const name = String(getRecordValue(record, "name") ?? "-");
         const packageMode = String(getRecordValue(record, "packageMode") ?? "-");
         const relatedModels = String(getRecordValue(record, "relatedModels") ?? "-");
-        const tokenLimitM = String(getRecordValue(record, "tokenLimitM") || "不限");
-        const monthlyTokenM = String(getRecordValue(record, "monthlyTokenM") || "不限");
-        const monthlyFee = Number(getRecordValue(record, "monthlyFee") ?? 0);
-        const discount = Number(getRecordValue(record, "discount") ?? 0);
         const billingMode = String(getRecordValue(record, "billingMode") ?? "-");
         const status = String(getRecordValue(record, "status") ?? "-");
         const isActive = status === "上架";
         const relatedModelList = relatedModels.split(",").map((item) => item.trim()).filter(Boolean);
-        const stats = getProductCardStats(record, packageMode, tokenLimitM, monthlyTokenM, monthlyFee, discount);
+        const stats = getProductCardStats(record);
 
         return (
           <article key={record.id} className="flex min-h-[360px] flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm shadow-slate-100 transition hover:border-blue-200 hover:shadow-md hover:shadow-slate-100">
@@ -1880,12 +1876,17 @@ function ProductCardStat({ label, value }: { label: string; value: React.ReactNo
   );
 }
 
-function getProductBillingLabel(packageMode: string, billingMode: string) {
-  const billingLabel = billingMode === "按量" ? "按量计费" : "套餐计费";
-  return packageMode.includes("包月") ? `${billingLabel}（包月）` : billingLabel;
+export function getProductBillingLabel(packageMode: string, billingMode: string) {
+  return billingMode === "按量" ? "按量计费" : "套餐计费";
 }
 
-function getProductCardStats(record: BaseRecord, packageMode: string, tokenLimitM: string, monthlyTokenM: string, monthlyFee: number, discount: number) {
+export function getProductCardStats(record: BaseRecord) {
+  const packageMode = String(getRecordValue(record, "packageMode") ?? "-");
+  const tokenLimitM = String(getRecordValue(record, "tokenLimitM") || "不限");
+  const monthlyTokenM = String(getRecordValue(record, "monthlyTokenM") || "不限");
+  const monthlyFee = Number(getRecordValue(record, "monthlyFee") ?? 0);
+  const billingMode = String(getRecordValue(record, "billingMode") ?? "-");
+
   if (packageMode === "按量包月") {
     return [
       { label: "价格", value: `${formatCurrency(monthlyFee)} / 月` },
@@ -1902,7 +1903,7 @@ function getProductCardStats(record: BaseRecord, packageMode: string, tokenLimit
 
   if (packageMode === "不限时按量") {
     return [
-      { label: "折扣", value: formatDiscount(discount) },
+      { label: "价格", value: billingMode === "按量" ? "按大模型售价" : `${formatCurrency(Number(getRecordValue(record, "inputPrice") ?? 0))}/1M` },
       { label: "总额度（Tokens）", value: tokenLimitM },
     ];
   }
