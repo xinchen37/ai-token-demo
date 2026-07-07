@@ -76,8 +76,8 @@ export function CustomerReportsPage({ data }: { data: DealerData }) {
     <div className="space-y-5">
       <div className="flex gap-8">
         {[
-          { label: "统计报表", value: "stats" as const },
-          { label: "明细报表", value: "details" as const },
+          { label: "统计分析", value: "stats" as const },
+          { label: "明细数据", value: "details" as const },
         ].map((tab) => (
           <button
             key={tab.value}
@@ -290,8 +290,7 @@ function StatsReport({
 }) {
   const [trendMetric, setTrendMetric] =
     React.useState<ReportTrendMetric>("amount");
-  const [trendRange, setTrendRange] =
-    React.useState<ReportTrendRange>("today");
+  const [trendRange, setTrendRange] = React.useState<ReportTrendRange>("today");
   const timeSeries = React.useMemo(
     () => buildTimeSeries(records, filters),
     [filters, records],
@@ -660,40 +659,39 @@ function ReportTrendChart({
       ? [{ point, index }]
       : [];
   });
-  const visibleLabels = labelCandidates.reduce<Array<(typeof labelCandidates)[number]>>(
-    (labels, candidate) => {
-      const minLabelGap = range === "today" ? 56 : 74;
-      const candidateX = getReportTrendPoint(
-        candidate.point,
-        candidate.index,
-        points.length,
-        axisMax,
-        plot,
-      ).x;
-      const previous = labels.at(-1);
+  const visibleLabels = labelCandidates.reduce<
+    Array<(typeof labelCandidates)[number]>
+  >((labels, candidate) => {
+    const minLabelGap = range === "today" ? 56 : 74;
+    const candidateX = getReportTrendPoint(
+      candidate.point,
+      candidate.index,
+      points.length,
+      axisMax,
+      plot,
+    ).x;
+    const previous = labels.at(-1);
 
-      if (!previous) return [candidate];
+    if (!previous) return [candidate];
 
-      const previousX = getReportTrendPoint(
-        previous.point,
-        previous.index,
-        points.length,
-        axisMax,
-        plot,
-      ).x;
+    const previousX = getReportTrendPoint(
+      previous.point,
+      previous.index,
+      points.length,
+      axisMax,
+      plot,
+    ).x;
 
-      if (candidateX - previousX >= minLabelGap) {
-        return [...labels, candidate];
-      }
+    if (candidateX - previousX >= minLabelGap) {
+      return [...labels, candidate];
+    }
 
-      if (candidate.index === points.length - 1) {
-        return [...labels.slice(0, -1), candidate];
-      }
+    if (candidate.index === points.length - 1) {
+      return [...labels.slice(0, -1), candidate];
+    }
 
-      return labels;
-    },
-    [],
-  );
+    return labels;
+  }, []);
   const hoveredPoint =
     hoveredIndex === null
       ? null
@@ -933,13 +931,7 @@ function getNiceTrendAxisMax(value: number) {
   const magnitude = 10 ** exponent;
   const normalized = padded / magnitude;
   const niceNormalized =
-    normalized <= 1
-      ? 1
-      : normalized <= 2
-        ? 2
-        : normalized <= 5
-          ? 5
-          : 10;
+    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
   return niceNormalized * magnitude;
 }
 

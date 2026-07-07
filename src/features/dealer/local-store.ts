@@ -316,7 +316,8 @@ function ensureBuiltInRecords(data: DealerData): DealerData {
 }
 
 function mergeById<T extends { id: string }>(current: T[], seed: T[]) {
-  const nextItems = [...current];
+  const seedById = new Map(seed.map((item) => [item.id, item]));
+  const nextItems = current.map((item) => seedById.get(item.id) ?? item);
   for (const item of seed) {
     if (!nextItems.some((currentItem) => currentItem.id === item.id)) {
       nextItems.push(item);
