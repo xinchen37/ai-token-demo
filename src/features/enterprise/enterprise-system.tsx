@@ -699,7 +699,8 @@ function Dashboard({
     [data, customer, records],
   );
   const rankingRecords = React.useMemo(
-    () => filterRecordsByRange(dashboardRecords, rankingRange, getDashboardNow()),
+    () =>
+      filterRecordsByRange(dashboardRecords, rankingRange, getDashboardNow()),
     [dashboardRecords, rankingRange],
   );
   const keys = getCustomerApiKeys(data, customer);
@@ -795,7 +796,7 @@ function Dashboard({
             tone="blue"
             label="API Key 数"
             value={formatNumber(keys.length)}
-            helperLabel="剩余额度"
+            helperLabel="剩余 Tokens"
             helperValue={formatNumber(remainingQuota)}
           />
         </div>
@@ -822,7 +823,10 @@ function Dashboard({
           <div>
             <div className="flex items-center justify-between">
               <SectionTitle icon={Trophy} title="排行榜" />
-              <RankingRangeTabs value={rankingRange} onChange={setRankingRange} />
+              <RankingRangeTabs
+                value={rankingRange}
+                onChange={setRankingRange}
+              />
             </div>
             <div className="mt-4 grid gap-4 xl:grid-cols-2">
               {rankingGroups.map((group) => (
@@ -3222,27 +3226,31 @@ function TeamReports({
               <option value="custom">自定义</option>
             </Select>
           </div>
-            {range === "custom" ? (
-              <>
-                <DatePickerInput
-                  className="w-36"
-                  placeholder="开始时间"
-                  value={customStart}
-                  onChange={setCustomStart}
-                />
-                <DatePickerInput
-                  className="w-36"
-                  placeholder="结束时间"
-                  value={customEnd}
-                  onChange={setCustomEnd}
-                />
-              </>
-            ) : null}
+          {range === "custom" ? (
+            <>
+              <DatePickerInput
+                className="w-36"
+                placeholder="开始时间"
+                value={customStart}
+                onChange={setCustomStart}
+              />
+              <DatePickerInput
+                className="w-36"
+                placeholder="结束时间"
+                value={customEnd}
+                onChange={setCustomEnd}
+              />
+            </>
+          ) : null}
           <Button className="shrink-0" variant="secondary">
             <Download className="size-4" />
             导出
           </Button>
-          <Button className="shrink-0" variant="secondary" onClick={resetFilters}>
+          <Button
+            className="shrink-0"
+            variant="secondary"
+            onClick={resetFilters}
+          >
             <RotateCcw className="size-4" />
             重置
           </Button>
